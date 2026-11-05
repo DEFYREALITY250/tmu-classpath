@@ -1,0 +1,1834 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TMU ClassPath — Campus Direction & Classroom Finder</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', ' system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            tmu: {
+              blue: '#004C9B',
+              lightBlue: '#1D70B8',
+              deepBlue: '#002D5C',
+              gold: '#FFDC00',
+              goldSoft: '#FFE853',
+              slateDark: '#0B1120',
+              cardDark: '#111827',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Animations & SVG Map Styling */
+    body {
+      background-color: #070C17;
+      color: #F8FAFC;
+      overflow-x: hidden;
+    }
+
+    /* Animated Walking Path in SVG */
+    @keyframes dashFlow {
+      to {
+        stroke-dashoffset: -48;
+      }
+    }
+
+    .route-path-animated {
+      stroke-dasharray: 10 6;
+      animation: dashFlow 1.2s linear infinite;
+    }
+
+    /* Building Target Pulse */
+    @keyframes targetPulse {
+      0%, 100% {
+        filter: drop-shadow(0 0 6px rgba(255, 220, 0, 0.75));
+      }
+      50% {
+        filter: drop-shadow(0 0 18px rgba(255, 220, 0, 1));
+      }
+    }
+
+    .bldg-active {
+      stroke: #FFDC00 !important;
+      stroke-width: 3px !important;
+      fill: #004C9B !important;
+      animation: targetPulse 2s ease-in-out infinite;
+    }
+
+    .bldg-footprint {
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+    }
+
+    .bldg-footprint:hover {
+      fill: #1E3A8A;
+      stroke: #60A5FA;
+      stroke-width: 2px;
+    }
+
+    /* Subtle Grid Pattern Overlay */
+    .campus-grid-bg {
+      background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0B1120;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1E293B;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex flex-col font-sans antialiased selection:bg-tmu-gold selection:text-slate-950">
+
+  <!-- Top Navigation Header -->
+  <header class="sticky top-0 z-40 backdrop-blur-xl bg-slate-950/85 border-b border-slate-800/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+      <!-- Brand Identity -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-tmu-blue border-2 border-tmu-gold flex items-center justify-center shadow-lg shadow-tmu-blue/30">
+          <span class="font-extrabold text-tmu-gold tracking-tighter text-base">TMU</span>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-white">
+              Class<span class="text-tmu-gold">Path</span>
+            </h1>
+            <span class="text-[11px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-tmu-blue/40 text-sky-300 border border-sky-500/30 font-semibold">
+              Campus Navigator
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">
+            Smart Room Decoder, Skybridge Shortcuts &amp; Floor Finder for Toronto Metropolitan University
+          </p>
+        </div>
+      </div>
+
+      <!-- Quick Status / Insider Guide Modal Trigger & Copy Button -->
+      <div class="flex items-center gap-2.5">
+        <button id="btnInsiderGuide" type="button" class="text-xs font-medium px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 flex items-center gap-2 transition">
+          <i class="fa-solid fa-graduation-cap text-tmu-gold"></i>
+          <span>First-Year Floor Quirks</span>
+        </button>
+        <button id="btnCopyDirections" type="button" class="text-xs font-semibold px-3 py-2 rounded-lg bg-tmu-blue hover:bg-sky-700 text-white border border-sky-400/30 flex items-center gap-2 transition shadow-sm">
+          <i class="fa-regular fa-copy"></i>
+          <span class="hidden sm:inline">Copy Route</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-6">
+
+    <!-- Control Bar: Room Input, Presets, Start Hub & Weather Mode -->
+    <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-2xl">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+
+        <!-- Left 7 Cols: Search Input + Preset Chips -->
+        <div class="lg:col-span-7 space-y-3">
+          <label for="roomSearchInput" class="block text-xs font-bold uppercase tracking-wider text-slate-400">
+            1. Enter Your Schedule Room Code
+          </label>
+          <form id="roomSearchForm" class="relative flex items-center">
+            <div class="relative flex-1">
+              <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input
+                id="roomSearchInput"
+                type="text"
+                value="TRS-1-067"
+                placeholder="e.g. KHW 271, TRS-1-067, ENG LG11, RCC 204, DSQ 06..."
+                autocomplete="off"
+                class="w-full pl-11 pr-28 py-3.5 rounded-xl bg-slate-950 border-2 border-slate-700/90 focus:border-tmu-gold focus:outline-none text-white font-mono text-base sm:text-lg placeholder:text-slate-600 placeholder:font-sans transition"
+              />
+              <button
+                type="submit"
+                class="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 rounded-lg bg-tmu-gold hover:bg-yellow-300 text-slate-950 font-bold text-xs sm:text-sm tracking-wide transition flex items-center gap-1.5 shadow"
+              >
+                <span>Locate</span>
+                <i class="fa-solid fa-location-arrow text-xs"></i>
+              </button>
+            </div>
+          </form>
+
+          <!-- Quick Preset Chips -->
+          <div class="flex flex-wrap items-center gap-1.5 pt-0.5">
+            <span class="text-[11px] font-semibold text-slate-400 mr-1 flex items-center gap-1">
+              <i class="fa-solid fa-bolt text-tmu-gold"></i> Try:
+            </span>
+            <button type="button" data-preset="KHW 271" class="preset-chip px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800/90 hover:bg-tmu-blue hover:text-white text-slate-300 border border-slate-700 transition">
+              KHW 271
+            </button>
+            <button type="button" data-preset="TRS-1-067" class="preset-chip px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800/90 hover:bg-tmu-blue hover:text-white text-slate-300 border border-slate-700 transition">
+              TRS-1-067
+            </button>
+            <button type="button" data-preset="ENG LG11" class="preset-chip px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800/90 hover:bg-tmu-blue hover:text-white text-slate-300 border border-slate-700 transition">
+              ENG LG11
+            </button>
+            <button type="button" data-preset="RCC 204" class="preset-chip px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800/90 hover:bg-tmu-blue hover:text-white text-slate-300 border border-slate-700 transition">
+              RCC 204
+            </button>
+            <button type="button" data-preset="DSQ 06" class="preset-chip px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800/90 hover:bg-tmu-blue hover:text-white text-slate-300 border border-slate-700 transition">
+              DSQ 06
+            </button>
+            <button type="button" data-preset="KHE 121" class="preset-chip px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800/90 hover:bg-tmu-blue hover:text-white text-slate-300 border border-slate-700 transition">
+              KHE 121
+            </button>
+            <button type="button" data-preset="SLC 508" class="preset-chip px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800/90 hover:bg-tmu-blue hover:text-white text-slate-300 border border-slate-700 transition">
+              SLC 508
+            </button>
+            <button type="button" data-preset="POD 250" class="preset-chip px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800/90 hover:bg-tmu-blue hover:text-white text-slate-300 border border-slate-700 transition">
+              POD 250
+            </button>
+            <button type="button" data-preset="KHN 304" class="preset-chip px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800/90 hover:bg-tmu-blue hover:text-white text-slate-300 border border-slate-700 transition">
+              KHN 304
+            </button>
+          </div>
+        </div>
+
+        <!-- Right 5 Cols: Start Hub Selector + Indoor/Winter Shortcut Mode -->
+        <div class="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
+          <!-- Starting Hub Selector -->
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+              2. Select Starting Hub
+            </label>
+            <div class="grid grid-cols-3 gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800" id="startHubGroup">
+              <button
+                type="button"
+                data-hub="DUNDAS"
+                class="hub-btn active-hub py-2 px-2 rounded-lg text-xs font-semibold text-center transition flex flex-col items-center justify-center gap-1 bg-tmu-blue text-white border border-sky-400/40 shadow"
+              >
+                <i class="fa-solid fa-train-subway text-tmu-gold"></i>
+                <span class="leading-tight">Dundas Stn</span>
+              </button>
+              <button
+                type="button"
+                data-hub="SLC"
+                class="hub-btn py-2 px-2 rounded-lg text-xs font-semibold text-center transition flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent"
+              >
+                <i class="fa-solid fa-building-columns text-sky-400"></i>
+                <span class="leading-tight">SLC (Gould)</span>
+              </button>
+              <button
+                type="button"
+                data-hub="QUAD"
+                class="hub-btn py-2 px-2 rounded-lg text-xs font-semibold text-center transition flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent"
+              >
+                <i class="fa-solid fa-tree text-emerald-400"></i>
+                <span class="leading-tight">Kerr Quad</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Weather / Indoor Bridge Toggle -->
+          <div class="flex items-center justify-between bg-slate-950 px-3.5 py-2.5 rounded-xl border border-slate-800">
+            <div class="flex items-center gap-2.5">
+              <div id="weatherIconBox" class="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-300">
+                <i class="fa-solid fa-snowflake"></i>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span>Winter / Rain Mode</span>
+                  <span id="indoorBadge" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">INDOOR BRIDGES</span>
+                </div>
+                <p class="text-[11px] text-slate-400">Prioritize PATH, POD &amp; RCC skybridges</p>
+              </div>
+            </div>
+            <button
+              id="btnWeatherToggle"
+              type="button"
+              role="switch"
+              aria-checked="true"
+              class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-tmu-blue transition-colors duration-200 ease-in-out focus:outline-none"
+            >
+              <span
+                id="weatherToggleKnob"
+                class="pointer-events-none inline-block h-5 w-5 translate-x-5 transform rounded-full bg-tmu-gold shadow ring-0 transition duration-200 ease-in-out"
+              ></span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Validation / Parser Error Banner (Hidden unless invalid code entered) -->
+      <div id="parseWarningBanner" class="hidden mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-400/40 text-amber-200 text-xs flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-amber-400 text-sm"></i>
+          <span id="parseWarningText">Could not recognize that building code. Try codes like KHW 271, TRS 1-067, ENG LG11, RCC 204, DSQ 06, SLC 508, or POD 250.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Decoded Classroom Metric Strip (4 Practical Cards) -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+      <!-- Card 1: Decoded Building & Wing -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-24 h-24 bg-tmu-blue/15 rounded-bl-full pointer-events-none"></div>
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Decoded Destination</span>
+          <span id="cardCodeBadge" class="font-mono text-xs font-bold px-2 py-0.5 rounded bg-tmu-gold text-slate-950">
+            TRS 1-067
+          </span>
+        </div>
+        <h2 id="cardBuildingName" class="text-base sm:text-lg font-extrabold text-white leading-snug">
+          Ted Rogers School of Management
+        </h2>
+        <p id="cardBuildingAddress" class="text-xs text-sky-300 font-medium mt-0.5">
+          55 Dundas St W (Bay &amp; Dundas Entrance)
+        </p>
+        <div class="mt-3 pt-2.5 border-t border-slate-800/90 flex items-center gap-2 text-xs text-slate-300">
+          <i class="fa-regular fa-compass text-tmu-gold"></i>
+          <span id="cardWingDetail">North-West Academic Corridor</span>
+        </div>
+      </div>
+
+      <!-- Card 2: True Elevator / Floor Decoder (Crucial for TRS / LG / DSQ) -->
+      <div id="floorCardContainer" class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 relative overflow-hidden">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">True Floor Decoder</span>
+          <span id="cardFloorQuirkBadge" class="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/40">
+            TRS LEVEL ALERT
+          </span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span id="cardTrueFloorBig" class="text-2xl sm:text-3xl font-extrabold text-tmu-gold font-mono">
+            7th Floor
+          </span>
+          <span id="cardRoomNumberSub" class="text-xs font-mono text-slate-400">
+            (Room 067)
+          </span>
+        </div>
+        <p id="cardFloorExplanation" class="text-xs text-slate-300 mt-1.5 leading-relaxed">
+          In TRS, "1-xxx" is Academic Level 1, which is actually the <strong class="text-white">7th Floor</strong> of the building above the retail mall.
+        </p>
+      </div>
+
+      <!-- Card 3: Estimated Walk Time & Exposure -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 relative overflow-hidden">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Walk Time &amp; Route</span>
+          <span id="cardExposureBadge" class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            100% INDOOR PATH
+          </span>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span id="cardWalkMinutes" class="text-2xl sm:text-3xl font-extrabold text-white font-mono">
+            3 min
+          </span>
+          <span id="cardWalkDistance" class="text-xs font-mono text-slate-400">
+            (~210 m)
+          </span>
+        </div>
+        <p id="cardStartHubLabel" class="text-xs text-slate-300 mt-1.5">
+          From <span class="text-sky-300 font-semibold">Dundas Subway Station</span> via Atrium on Bay concourse.
+        </p>
+      </div>
+
+      <!-- Card 4: Accessibility & Washroom / Refill Insider Tip -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 relative overflow-hidden flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Access &amp; Pit Stops</span>
+            <i class="fa-solid fa-wheelchair text-sky-400 text-xs" title="Barrier-Free Info"></i>
+          </div>
+          <div class="space-y-2 mt-1">
+            <div class="flex items-start gap-2 text-xs">
+              <i class="fa-solid fa-elevator text-tmu-gold mt-0.5 shrink-0"></i>
+              <p id="cardAccessNote" class="text-slate-300 leading-snug">
+                Take escalators or central glass elevator bank at 55 Dundas W up to Level 7.
+              </p>
+            </div>
+            <div class="flex items-start gap-2 text-xs">
+              <i class="fa-solid fa-restroom text-sky-400 mt-0.5 shrink-0"></i>
+              <p id="cardWashroomNote" class="text-slate-300 leading-snug">
+                Multi-stall &amp; all-gender washrooms + bottle fillers located behind the central escalators on Floors 7, 8 &amp; 9.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Main Split View: Interactive Campus SVG Map (Left) & Step-by-Step Navigation + Shortcuts (Right) -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+      <!-- Left 7 Cols: Interactive Stylized Inline SVG Campus Map -->
+      <div class="lg:col-span-7 bg-slate-900/95 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+        <!-- Map Top Bar -->
+        <div class="px-4 py-3 bg-slate-950/80 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-tmu-gold animate-ping"></span>
+            <h3 class="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+              Interactive TMU Core Campus Map
+            </h3>
+          </div>
+          <div class="flex items-center gap-3 text-[11px] text-slate-400">
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-1 rounded bg-tmu-gold inline-block"></span> Active Route
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-2 rounded-sm bg-sky-400/40 border border-sky-400 inline-block"></span> Skybridge / Tunnel
+            </span>
+          </div>
+        </div>
+
+        <!-- SVG Map Viewport -->
+        <div class="relative campus-grid-bg p-2 sm:p-4 flex items-center justify-center">
+          <svg
+            id="tmuCampusSvg"
+            viewBox="0 0 820 560"
+            class="w-full h-auto max-h-[540px] select-none rounded-xl bg-[#080F1E] border border-slate-800/80 shadow-inner"
+             aria-label="TMU Interactive Campus Map"
+          >
+            <defs>
+              <!-- Glow Filter for Route and Active Building -->
+              <filter id="goldGlow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="4" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+
+              <!-- Arrow Marker for Path Direction -->
+              <marker id="routeArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="#FFDC00" />
+              </marker>
+
+              <!-- Hatch Pattern for Indoor Skybridges / Underground PATH -->
+              <pattern id="bridgePattern" width="6" height="6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                <line x1="0" y1="0" x2="0" y2="6" stroke="#38BDF8" stroke-width="2" />
+              </pattern>
+            </defs>
+
+            <!-- ==================== 1. CAMPUS STREETS & GRID ==================== -->
+            <g id="mapStreets" class="opacity-90">
+              <!-- Horizontal Streets -->
+              <!-- Gerrard St E (Top North) -->
+              <rect x="0" y="28" width="820" height="24" fill="#111C30" />
+              <text x="410" y="44" fill="#64748B" font-size="10" font-weight="700" letter-spacing="3" text-anchor="middle">GERRARD ST E</text>
+
+              <!-- Gould St (Pedestrian Heart of Campus) -->
+              <rect x="0" y="268" width="820" height="28" fill="#15233C" />
+              <line x1="210" y1="282" x2="670" y2="282" stroke="#334155" stroke-dasharray="4 6" stroke-width="1.5" />
+              <text x="495" y="286" fill="#94A3B8" font-size="10" font-weight="700" letter-spacing="2.5" text-anchor="middle">GOULD ST (PEDESTRIAN ZONE)</text>
+
+              <!-- Dundas St W / E (Bottom South Artery) -->
+              <rect x="0" y="458" width="820" height="34" fill="#111C30" />
+              <line x1="0" y1="475" x2="820" y2="475" stroke="#334155" stroke-dasharray="8 8" stroke-width="1.5" />
+              <text x="430" y="479" fill="#94A3B8" font-size="11" font-weight="800" letter-spacing="3" text-anchor="middle">DUNDAS ST E / W</text>
+
+              <!-- Vertical Streets -->
+              <!-- Bay St (Far West) -->
+              <rect x="38" y="0" width="26" height="560" fill="#111C30" />
+              <text x="51" y="210" fill="#64748B" font-size="10" font-weight="700" letter-spacing="2" transform="rotate(-90 51 210)" text-anchor="middle">BAY ST</text>
+
+              <!-- Yonge St (Major West Artery) -->
+              <rect x="195" y="0" width="32" height="560" fill="#16243E" />
+              <line x1="211" y1="0" x2="211" y2="560" stroke="#F59E0B" stroke-opacity="0.3" stroke-dasharray="6 6" stroke-width="1.5" />
+              <text x="211" y="140" fill="#CBD5E1" font-size="11" font-weight="800" letter-spacing="3" transform="rotate(-90 211 140)" text-anchor="middle">YONGE ST</text>
+
+              <!-- Victoria St (Mid-West) -->
+              <rect x="366" y="52" width="22" height="406" fill="#111C30" />
+              <text x="377" y="375" fill="#64748B" font-size="9" font-weight="700" letter-spacing="2" transform="rotate(-90 377 375)" text-anchor="middle">VICTORIA ST</text>
+
+              <!-- Bond St (South of Gould) -->
+              <rect x="520" y="296" width="20" height="162" fill="#111C30" />
+              <text x="530" y="385" fill="#64748B" font-size="9" font-weight="700" letter-spacing="2" transform="rotate(-90 530 385)" text-anchor="middle">BOND ST</text>
+
+              <!-- Church St (East Artery) -->
+              <rect x="650" y="0" width="28" height="560" fill="#16243E" />
+              <text x="664" y="140" fill="#CBD5E1" font-size="11" font-weight="800" letter-spacing="2.5" transform="rotate(-90 664 140)" text-anchor="middle">CHURCH ST</text>
+            </g>
+
+            <!-- ==================== 2. GREEN QUADS & PLAZAS ==================== -->
+            <!-- Kerr Hall Central Quad Grass & Cross Paths -->
+            <g id="kerrQuadPark">
+              <rect x="435" y="110" width="165" height="112" rx="8" fill="#064E3B" fill-opacity="0.55" stroke="#059669" stroke-width="1.5" />
+              <!-- Diagonal Quad Walkways -->
+              <line x1="435" y1="110" x2="600" y2="222" stroke="#047857" stroke-width="2" stroke-dasharray="3 3" />
+              <line x1="600" y1="110" x2="435" y2="222" stroke="#047857" stroke-width="2" stroke-dasharray="3 3" />
+              <line x1="517" y1="110" x2="517" y2="222" stroke="#10B981" stroke-opacity="0.4" stroke-width="2" />
+              <line x1="435" y1="166" x2="600" y2="166" stroke="#10B981" stroke-opacity="0.4" stroke-width="2" />
+              <text x="517" y="148" fill="#6EE7B7" font-size="9" font-weight="700" letter-spacing="1.5" text-anchor="middle">KERR HALL</text>
+              <text x="517" y="160" fill="#6EE7B7" font-size="9" font-weight="700" letter-spacing="1.5" text-anchor="middle">CENTRAL QUAD</text>
+            </g>
+
+            <!-- Lake Devo / Devonian Pond (South of KHS / West of Bond) -->
+            <g id="lakeDevo">
+              <rect x="398" y="306" width="110" height="58" rx="10" fill="#0C4A6E" fill-opacity="0.45" stroke="#0284C7" stroke-width="1" stroke-dasharray="3 2" />
+              <text x="453" y="338" fill="#7DD3FC" font-size="9" font-weight="600" text-anchor="middle">LAKE DEVO</text>
+            </g>
+
+            <!-- Yonge-Dundas Square Plaza -->
+            <g id="ydsPlaza">
+              <rect x="232" y="405" width="128" height="48" rx="6" fill="#1E293B" fill-opacity="0.7" stroke="#475569" stroke-width="1" />
+              <text x="296" y="432" fill="#94A3B8" font-size="8.5" font-weight="700" letter-spacing="1" text-anchor="middle">SANKEFA / DUNDAS SQ</text>
+            </g>
+
+            <!-- ==================== 3. INDOOR BRIDGES & TUNNELS ==================== -->
+            <!-- Underground PATH / Atrium on Bay Link (Dundas Stn <-> TRS) -->
+            <g id="bridgePathTrs" class="cursor-pointer group">
+              <rect x="135" y="438" width="65" height="16" rx="4" fill="#0284C7" fill-opacity="0.25" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="3 2" />
+              <text x="167" y="449" fill="#7DD3FC" font-size="7.5" font-weight="700" text-anchor="middle">PATH TUNNEL</text>
+            </g>
+
+            <!-- 2nd Floor Pedway: POD / Library <-> Kerr Hall West (KHW) over Victoria St -->
+            <g id="bridgePodKhw" class="cursor-pointer">
+              <rect x="360" y="176" width="38" height="18" rx="3" fill="url(#bridgePattern)" stroke="#38BDF8" stroke-width="1.5" />
+              <rect x="346" y="156" width="68" height="15" rx="4" fill="#0F172A" stroke="#38BDF8" stroke-width="0.8" />
+              <text x="380" y="166" fill="#7DD3FC" font-size="7.5" font-weight="700" text-anchor="middle">2F POD-KHW BRIDGE</text>
+            </g>
+
+            <!-- 2nd Floor Skybridge: Kerr Hall East (KHE) <-> RCC over Church St -->
+            <g id="bridgeKheRcc" class="cursor-pointer">
+              <rect x="642" y="155" width="44" height="18" rx="3" fill="url(#bridgePattern)" stroke="#38BDF8" stroke-width="1.5" />
+              <rect x="626" y="135" width="76" height="15" rx="4" fill="#0F172A" stroke="#38BDF8" stroke-width="0.8" />
+              <text x="664" y="145" fill="#7DD3FC" font-size="7.5" font-weight="700" text-anchor="middle">2F CHURCH BRIDGE</text>
+            </g>
+
+            <!-- Indoor Link: SLC <-> Library / POD -->
+            <g id="bridgeSlcPod">
+              <rect x="285" y="218" width="22" height="18" rx="2" fill="url(#bridgePattern)" stroke="#38BDF8" stroke-width="1.2" />
+            </g>
+
+            <!-- ==================== 4. CAMPUS BUILDINGS (Interactive) ==================== -->
+
+            <!-- TRS: Ted Rogers School of Management (Bay & Dundas, 55 Dundas St W) -->
+            <g id="bldg-TRS" data-bldg="TRS" data-sample="TRS-1-067" class="bldg-group">
+              <rect id="shape-TRS" x="68" y="365" width="118" height="88" rx="10" fill="#1E293B" stroke="#475569" stroke-width="2" class="bldg-footprint" />
+              <text x="127" y="402" fill="#FFFFFF" font-size="14" font-weight="800" text-anchor="middle" class="pointer-events-none">TRS</text>
+              <text x="127" y="418" fill="#94A3B8" font-size="8.5" font-weight="600" text-anchor="middle" class="pointer-events-none">Ted Rogers Mgmt</text>
+              <text x="127" y="432" fill="#FBBF24" font-size="8" font-family="JetBrains Mono" font-weight="700" text-anchor="middle" class="pointer-events-none">Flr 7 / 8 / 9</text>
+            </g>
+
+            <!-- SLC: Student Learning Centre (Yonge & Gould) -->
+            <g id="bldg-SLC" data-bldg="SLC" data-sample="SLC 508" class="bldg-group">
+              <rect id="shape-SLC" x="232" y="192" width="60" height="72" rx="8" fill="#1E293B" stroke="#475569" stroke-width="2" class="bldg-footprint" />
+              <text x="262" y="226" fill="#FFFFFF" font-size="13" font-weight="800" text-anchor="middle" class="pointer-events-none">SLC</text>
+              <text x="262" y="240" fill="#94A3B8" font-size="8" font-weight="600" text-anchor="middle" class="pointer-events-none">Learning Ctr</text>
+            </g>
+
+            <!-- POD / LIB: Podium (Jorgenson Hall) & Library Building -->
+            <g id="bldg-POD" data-bldg="POD" data-sample="POD 250" class="bldg-group">
+              <rect id="shape-POD" x="298" y="138" width="64" height="126" rx="8" fill="#1E293B" stroke="#475569" stroke-width="2" class="bldg-footprint" />
+              <text x="330" y="195" fill="#FFFFFF" font-size="12" font-weight="800" text-anchor="middle" class="pointer-events-none">POD / LIB</text>
+              <text x="330" y="210" fill="#94A3B8" font-size="8" font-weight="600" text-anchor="middle" class="pointer-events-none">Podium &amp; Lib</text>
+            </g>
+
+            <!-- KERR HALL QUAD WINGS (KHN, KHW, KHE, KHS) -->
+            <!-- KHN: Kerr Hall North -->
+            <g id="bldg-KHN" data-bldg="KHN" data-sample="KHN 304" class="bldg-group">
+              <rect id="shape-KHN" x="394" y="68" width="248" height="40" rx="6" fill="#1E293B" stroke="#475569" stroke-width="2" class="bldg-footprint" />
+              <text x="518" y="92" fill="#FFFFFF" font-size="12" font-weight="800" text-anchor="middle" class="pointer-events-none">KHN (Kerr Hall North)</text>
+            </g>
+
+            <!-- KHW: Kerr Hall West -->
+            <g id="bldg-KHW" data-bldg="KHW" data-sample="KHW 271" class="bldg-group">
+              <rect id="shape-KHW" x="394" y="110" width="40" height="112" rx="6" fill="#1E293B" stroke="#475569" stroke-width="2" class="bldg-footprint" />
+              <text x="414" y="166" fill="#FFFFFF" font-size="11" font-weight="800" transform="rotate(-90 414 166)" text-anchor="middle" class="pointer-events-none">KHW (West)</text>
+            </g>
+
+            <!-- KHE: Kerr Hall East -->
+            <g id="bldg-KHE" data-bldg="KHE" data-sample="KHE 121" class="bldg-group">
+              <rect id="shape-KHE" x="602" y="110" width="40" height="112" rx="6" fill="#1E293B" stroke="#475569" stroke-width="2" class="bldg-footprint" />
+              <text x="622" y="166" fill="#FFFFFF" font-size="11" font-weight="800" transform="rotate(90 622 166)" text-anchor="middle" class="pointer-events-none">KHE (East)</text>
+            </g>
+
+            <!-- KHS: Kerr Hall South -->
+            <g id="bldg-KHS" data-bldg="KHS" data-sample="KHS 239" class="bldg-group">
+              <rect id="shape-KHS" x="394" y="224" width="248" height="40" rx="6" fill="#1E293B" stroke="#475569" stroke-width="2" class="bldg-footprint" />
+              <text x="518" y="248" fill="#FFFFFF" font-size="12" font-weight="800" text-anchor="middle" class="pointer-events-none">KHS (Kerr Hall South)</text>
+            </g>
+
+            <!-- RCC: Rogers Communications Centre (East of Church St, North of Gould) -->
+            <g id="bldg-RCC" data-bldg="RCC" data-sample="RCC 204" class="bldg-group">
+              <rect id="shape-RCC" x="686" y="112" width="110" height="145" rx="10" fill="#1E293B" stroke="#475569" stroke-width="2" class="bldg-footprint" />
+              <text x="741" y="178" fill="#FFFFFF" font-size="14" font-weight="800" text-anchor="middle" class="pointer-events-none">RCC</text>
+              <text x="741" y="194" fill="#94A3B8" font-size="8.5" font-weight="600" text-anchor="middle" class="pointer-events-none">Rogers Comm Ctr</text>
+            </g>
+
+            <!-- ENG: George Vari Engineering & Computing Centre (Church & Gould, South-West corner) -->
+            <g id="bldg-ENG" data-bldg="ENG" data-sample="ENG LG11" class="bldg-group">
+              <rect id="shape-ENG" x="546" y="302" width="98" height="125" rx="10" fill="#1E293B" stroke="#475569" stroke-width="2" class="bldg-footprint" />
+              <text x="595" y="358" fill="#FFFFFF" font-size="14" font-weight="800" text-anchor="middle" class="pointer-events-none">ENG</text>
+              <text x="595" y="374" fill="#94A3B8" font-size="8.5" font-weight="600" text-anchor="middle" class="pointer-events-none">George Vari Eng</text>
+              <text x="595" y="388" fill="#38BDF8" font-size="8" font-family="JetBrains Mono" font-weight="600" text-anchor="middle" class="pointer-events-none">LG / 1F - 4F</text>
+            </g>
+
+            <!-- DSQ: Yonge-Dundas Square Cineplex Lecture Halls (10 Dundas St E) -->
+            <g id="bldg-DSQ" data-bldg="DSQ" data-sample="DSQ 06" class="bldg-group">
+              <rect id="shape-DSQ" x="232" y="318" width="125" height="78" rx="10" fill="#1E293B" stroke="#475569" stroke-width="2" class="bldg-footprint" />
+              <text x="294" y="352" fill="#FFFFFF" font-size="14" font-weight="800" text-anchor="middle" class="pointer-events-none">DSQ</text>
+              <text x="294" y="366" fill="#94A3B8" font-size="8.5" font-weight="600" text-anchor="middle" class="pointer-events-none">10 Dundas E (Cineplex)</text>
+              <text x="294" y="380" fill="#FBBF24" font-size="8" font-family="JetBrains Mono" font-weight="700" text-anchor="middle" class="pointer-events-none">3rd Flr Theatres</text>
+            </g>
+
+            <!-- ==================== 5. DYNAMIC WALKING PATH LAYER ==================== -->
+            <!-- Base Glow Path -->
+            <path
+              id="svgRouteGlow"
+              d=""
+              fill="none"
+              stroke="#004C9B"
+              stroke-width="9"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              opacity="0.65"
+            />
+            <!-- Animated Dashed Gold Route -->
+            <path
+              id="svgRouteLine"
+              d=""
+              fill="none"
+              stroke="#FFDC00"
+              stroke-width="4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              marker-end="url(#routeArrow)"
+              filter="url(#goldGlow)"
+              class="route-path-animated"
+            />
+
+            <!-- ==================== 6. STARTING HUB PINS ==================== -->
+            <!-- Hub 1: Dundas Subway Station (Yonge & Dundas) -->
+            <g id="hubPin-DUNDAS" data-hub="DUNDAS" class="cursor-pointer">
+              <circle cx="211" cy="462" r="14" fill="#0F172A" stroke="#38BDF8" stroke-width="2" />
+              <circle cx="211" cy="462" r="6" fill="#38BDF8" />
+              <rect x="156" y="483" width="110" height="18" rx="5" fill="#0F172A" stroke="#38BDF8" stroke-width="1" />
+              <text x="211" y="495" fill="#E0F2FE" font-size="8.5" font-weight="800" text-anchor="middle">START: DUNDAS STN</text>
+            </g>
+
+            <!-- Hub 2: SLC Entrance on Gould St -->
+            <g id="hubPin-SLC" data-hub="SLC" class="cursor-pointer">
+              <circle cx="262" cy="272" r="14" fill="#0F172A" stroke="#38BDF8" stroke-width="2" />
+              <circle cx="262" cy="272" r="6" fill="#38BDF8" />
+              <rect x="212" y="290" width="100" height="18" rx="5" fill="#0F172A" stroke="#38BDF8" stroke-width="1" />
+              <text x="262" y="302" fill="#E0F2FE" font-size="8.5" font-weight="800" text-anchor="middle">START: SLC GOULD</text>
+            </g>
+
+            <!-- Hub 3: Kerr Hall Quad Centre -->
+            <g id="hubPin-QUAD" data-hub="QUAD" class="cursor-pointer">
+              <circle cx="517" cy="175" r="14" fill="#0F172A" stroke="#38BDF8" stroke-width="2" />
+              <circle cx="517" cy="175" r="6" fill="#38BDF8" />
+              <rect x="469" y="193" width="96" height="18" rx="5" fill="#0F172A" stroke="#38BDF8" stroke-width="1" />
+              <text x="517" y="205" fill="#E0F2FE" font-size="8.5" font-weight="800" text-anchor="middle">START: KERR QUAD</text>
+            </g>
+
+            <!-- Target Destination Pin Marker (Dynamic Position) -->
+            <g id="targetDestPin" transform="translate(127, 395)" class="pointer-events-none transition-transform duration-300">
+              <circle cx="0" cy="0" r="18" fill="#FFDC00" fill-opacity="0.25" />
+              <circle cx="0" cy="0" r="7" fill="#FFDC00" stroke="#0F172A" stroke-width="2.5" />
+            </g>
+          </svg>
+        </div>
+
+        <!-- Map Footer Interactive Hint & Quick Building Selector Bar -->
+        <div class="px-4 py-3 bg-slate-950/90 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <span class="text-slate-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-hand-pointer text-tmu-gold"></i>
+            <span>Click any building or start hub directly on the map to preview routes.</span>
+          </span>
+          <span id="mapActiveRouteLabel" class="font-mono text-sky-300 font-semibold">
+            Dundas Stn → TRS (Indoor PATH)
+          </span>
+        </div>
+      </div>
+
+      <!-- Right 5 Cols: Step-by-Step Navigation & Authentic TMU Indoor Shortcuts -->
+      <div class="lg:col-span-5 flex flex-col gap-5">
+
+        <!-- Step-by-Step Directions Card -->
+        <div class="bg-slate-900/95 border border-slate-800 rounded-2xl p-5 shadow-2xl">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3.5 mb-4">
+            <div>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-tmu-gold block">Turn-by-Turn Navigation</span>
+              <h3 id="stepsHeaderTitle" class="text-base sm:text-lg font-extrabold text-white">
+                Dundas Station to TRS 1-067
+              </h3>
+            </div>
+            <div id="routeModePill" class="px-2.5 py-1 rounded-lg bg-sky-500/20 border border-sky-400/30 text-sky-300 text-xs font-mono font-semibold flex items-center gap-1.5">
+              <i class="fa-solid fa-snowflake"></i>
+              <span>Indoor Pref</span>
+            </div>
+          </div>
+
+          <!-- Dynamic Ordered Steps List -->
+          <ol id="directionsStepList" class="space-y-3.5 relative before:absolute before:left-3.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-800">
+            <!-- Populated dynamically by JS -->
+          </ol>
+        </div>
+
+        <!-- Authentic TMU Indoor Shortcut & Building Quirk Card -->
+        <div class="bg-gradient-to-br from-tmu-deepBlue/90 via-slate-900 to-slate-900 border border-sky-500/30 rounded-2xl p-5 shadow-xl">
+          <div class="flex items-center gap-2.5 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-tmu-gold text-slate-950 flex items-center justify-center font-bold">
+              <i class="fa-solid fa-bolt"></i>
+            </div>
+            <div>
+              <h4 class="text-sm font-extrabold text-white uppercase tracking-wide">
+                TMU Insider Shortcut &amp; Hallway Hack
+              </h4>
+              <p class="text-[11px] text-sky-300">Verified upper-year campus routing tips</p>
+            </div>
+          </div>
+
+          <div id="insiderShortcutBox" class="space-y-2.5 text-xs text-slate-200 leading-relaxed">
+            <!-- Populated dynamically by JS -->
+          </div>
+
+          <!-- Permanent Campus Bridge Reference Pills -->
+          <div class="mt-4 pt-3.5 border-t border-slate-800/80">
+            <span class="text-[10px] font-mono uppercase tracking-wider text-slate-400 block mb-2">
+              Quick Campus Skybridge &amp; Tunnel Reference:
+            </span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+              <div class="p-2 rounded-lg bg-slate-950/70 border border-slate-800 flex items-start gap-2">
+                <i class="fa-solid fa-bridge text-sky-400 mt-0.5"></i>
+                <div>
+                  <strong class="text-white block">RCC ↔ KHE Skybridge</strong>
+                  <span class="text-slate-400">Crosses Church St on 2nd Floor (KHE 2nd S-E corner).</span>
+                </div>
+              </div>
+              <div class="p-2 rounded-lg bg-slate-950/70 border border-slate-800 flex items-start gap-2">
+                <i class="fa-solid fa-bridge text-tmu-gold mt-0.5"></i>
+                <div>
+                  <strong class="text-white block">SLC → POD → KHW 2F</strong>
+                  <span class="text-slate-400">Walk indoor from SLC 2F through LIB/POD into KHW 2F.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- First-Year Floor Quirks Modal (Hidden by default) -->
+  <div id="quirksModal" class="fixed inset-0 z-50 hidden bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2.5">
+          <i class="fa-solid fa-compass-drafting text-tmu-gold text-lg"></i>
+          <h3 class="text-lg font-extrabold text-white">TMU First-Year Survival Guide: Room &amp; Floor Quirks</h3>
+        </div>
+        <button id="btnCloseModal" type="button" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs sm:text-sm text-slate-300">
+        <div class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-400/30">
+          <h4 class="font-bold text-amber-300 flex items-center gap-2 mb-1">
+            <i class="fa-solid fa-building"></i>
+            1. The TRS "7th Floor" Illusion (TRS 1-xxx, 2-xxx, 3-xxx)
+          </h4>
+          <p class="leading-relaxed">
+            Ted Rogers School of Management (55 Dundas St W) sits on top of a commercial retail building (Best Buy / Canadian Tire).
+            <strong>TRS Floor 1 (e.g., TRS 1-067) is actually the 7th Floor of the building!</strong>
+            TRS 2-xxx is the 8th Floor, and TRS 3-xxx is the 9th Floor. Never wander the ground floor looking for 1-067!
+          </p>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-sky-500/10 border border-sky-400/30">
+          <h4 class="font-bold text-sky-300 flex items-center gap-2 mb-1">
+            <i class="fa-solid fa-vector-square"></i>
+            2. Kerr Hall's 4-Wing Loop &amp; Basement Trap (KHN, KHE, KHS, KHW)
+          </h4>
+          <p class="leading-relaxed">
+            Kerr Hall wraps around the Quad in a continuous square loop on <strong>Floors 1, 2, and 3</strong>. However, the <strong>Basement (0xx rooms) is NOT a full loop</strong>—it has dead-end walls between wings! Always navigate Kerr Hall on the <strong>1st or 2nd floor loop</strong> until you are in the exact wing (N/E/S/W), then go up or down.
+          </p>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-purple-500/10 border border-purple-400/30">
+          <h4 class="font-bold text-purple-300 flex items-center gap-2 mb-1">
+            <i class="fa-solid fa-film"></i>
+            3. DSQ Classes are Inside the Cineplex Movie Theatre!
+          </h4>
+          <p class="leading-relaxed">
+            Rooms like <strong>DSQ 06</strong> or <strong>DSQ 09</strong> are real stadium movie auditoriums inside <strong>10 Dundas St E</strong> (at Yonge &amp; Dundas). Enter at street level or from Dundas Station underground, and take the long escalators up to the 3rd Floor Cineplex concourse.
+          </p>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-400/30">
+          <h4 class="font-bold text-emerald-300 flex items-center gap-2 mb-1">
+            <i class="fa-solid fa-layer-group"></i>
+            4. ENG "LG" Rooms &amp; POD / LIB Split Levels
+          </h4>
+          <p class="leading-relaxed">
+            In the George Vari Engineering Building (ENG), <strong>LG</strong> stands for <strong>Lower Ground</strong> (one level down via central stairs or elevator from the Gould/Church lobby). In <strong>POD (Jorgenson Hall)</strong>, the 2nd and 3rd floors connect seamlessly into the Library (LIB) and across the indoor bridge into Kerr Hall West (KHW) 2nd floor.
+          </p>
+        </div>
+      </div>
+
+      <div class="pt-2 flex justify-end">
+        <button id="btnCloseModalBottom" type="button" class="px-4 py-2 rounded-xl bg-tmu-gold text-slate-950 font-bold text-xs">
+          Got It, Let's Navigate
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification for Clipboard Copy -->
+  <div id="copyToast" class="fixed bottom-5 right-5 z-50 pointer-events-none opacity-0 translate-y-2 transition-all duration-300 bg-slate-900 border border-tmu-gold text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold">
+    <i class="fa-solid fa-circle-check text-tmu-gold text-base"></i>
+    <span id="copyToastMsg">Route directions copied to clipboard!</span>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800/80 bg-slate-950 py-4 px-4 sm:px-6 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <span><strong>TMU ClassPath</strong> — Built for Toronto Metropolitan University Students</span>
+      <span class="font-mono text-[11px] text-slate-400">Supports KHW • KHE • KHN • KHS • TRS • ENG • RCC • DSQ • SLC • POD • LIB</span>
+    </div>
+  </footer>
+
+  <!-- ==================== APPLICATION JAVASCRIPT ==================== -->
+  <script>
+    /**
+     * TMU ClassPath — Core Campus Database, Smart Room Code Parser & Routing Engine
+     */
+
+    // 1. Comprehensive TMU Building Metadata & Insider Knowledge Base
+    const TMU_BUILDINGS = {
+      KHW: {
+        code: 'KHW',
+        name: 'Kerr Hall West',
+        address: '379 Victoria St (West Wing of Kerr Hall Quad)',
+        pinCoords: { x: 414, y: 166 },
+        accessNote: 'Barrier-free elevator located near the KHW central Victoria St lobby and 2nd-floor POD pedway entrance.',
+        washroomNote: 'Washrooms & water bottle refill stations located near the North-West (KHN/KHW) and South-West (KHS/KHW) corner hubs on Floors 1–3.',
+        insiderHack: 'Take the 2nd-floor indoor bridge from SLC/Library/POD straight into KHW 2nd Floor! Room numbers in KHW run North-to-South along the Victoria St corridor.',
+        quadrantLogic: (roomNum) => {
+          const n = parseInt(roomNum.replace(/\D/g, ''), 10) || 200;
+          const lastTwo = n % 100;
+          if (lastTwo >= 60) return 'South-West Wing Corridor (closer to Gould St / KHS corner & POD Pedway)';
+          return 'North-West Wing Corridor (closer to Gerrard St / KHN corner & Gymnasium)';
+        }
+      },
+      KHE: {
+        code: 'KHE',
+        name: 'Kerr Hall East',
+        address: '340 Church St (East Wing of Kerr Hall Quad)',
+        pinCoords: { x: 622, y: 166 },
+        accessNote: 'Ramped entrance available via Kerr Hall Quad courtyard; elevator in the East wing near the centre stairwell.',
+        washroomNote: 'Washrooms and filtered water refill stations near the South-East (KHE/KHS) corner and 2nd-floor RCC bridge landing.',
+        insiderHack: 'KHE 2nd Floor connects directly to the enclosed glass skybridge over Church St into RCC! Never wait for the Church St traffic light in winter.',
+        quadrantLogic: (roomNum) => {
+          const n = parseInt(roomNum.replace(/\D/g, ''), 10) || 100;
+          const lastTwo = n % 100;
+          if (lastTwo <= 25) return 'South-East Wing Corridor (near KHS corner & Church St Skybridge)';
+          return 'Mid-to-North East Wing Corridor (along Church St towards KHN)';
+        }
+      },
+      KHN: {
+        code: 'KHN',
+        name: 'Kerr Hall North',
+        address: '31 / 43 Gerrard St E (North Wing of Kerr Hall Quad)',
+        pinCoords: { x: 518, y: 88 },
+        accessNote: 'Accessible via Kerr Hall West/East elevators on Floors 1–3; continuous flat floor loop connects KHN.',
+        washroomNote: 'Washrooms located at the North-West (KHW/KHN) and North-East (KHE/KHN) corner junctions.',
+        insiderHack: 'Don’t try to walk through the Kerr Hall basement to reach KHN—it has dead-end mechanical walls. Walk along the 2nd floor loop from KHW or KHE instead!',
+        quadrantLogic: () => 'North Wing Corridor (running East-West along Gerrard St E overlooking the Quad)'
+      },
+      KHS: {
+        code: 'KHS',
+        name: 'Kerr Hall South',
+        address: '40 / 50 Gould St (South Wing of Kerr Hall Quad)',
+        pinCoords: { x: 518, y: 244 },
+        accessNote: 'Accessible via Quad courtyard entry or the 2nd-floor continuous loop from KHW/KHE elevators.',
+        washroomNote: 'Washrooms & water bottle stations at the South-West (Gould/Victoria) and South-East (Gould/Church) corner hubs.',
+        insiderHack: 'KHS overlooks Gould St and Lake Devo. If coming from SLC in the rain, cross via the POD 2nd-floor bridge into KHW and walk south into KHS indoors.',
+        quadrantLogic: () => 'South Wing Corridor (running East-West along Gould St pedestrian zone)'
+      },
+      TRS: {
+        code: 'TRS',
+        name: 'Ted Rogers School of Management',
+        address: '55 Dundas St W (Bay St & Dundas St W)',
+        pinCoords: { x: 127, y: 405 },
+        accessNote: 'Full elevator bank in the 55 Dundas St W atrium lobby and direct underground elevator/escalator access from Dundas Station / Atrium on Bay.',
+        washroomNote: 'Large multi-stall & single-user all-gender washrooms + bottle fillers located behind the central escalators on Floors 7 (TRS-1), 8 (TRS-2), and 9 (TRS-3).',
+        insiderHack: 'CRITICAL FIRST-YEAR TIP: TRS sits above a 6-floor retail podium (Best Buy / Canadian Tire). "TRS 1-xxx" = 7th Floor, "TRS 2-xxx" = 8th Floor, "TRS 3-xxx" = 9th Floor!',
+        quadrantLogic: (roomNum, subWing) => {
+          const digits = parseInt(roomNum, 10) || 67;
+          if (digits < 50) return `East Academic Wing (closer to Yonge St / Atrium side, Section ${subWing || '1'})`;
+          if (digits < 110) return `Central & North-West Lecture Wing (near main escalators, Section ${subWing || '1'})`;
+          return `West Bay St Corridor (overlooking Bay & Dundas, Section ${subWing || '1'})`;
+        }
+      },
+      ENG: {
+        code: 'ENG',
+        name: 'George Vari Engineering & Computing Centre',
+        address: '245 Church St (South-West Corner of Church & Gould)',
+        pinCoords: { x: 595, y: 360 },
+        accessNote: 'Automatic barrier-free doors at both Gould St and Church St entrances; central passenger elevators serve LG, 1F, 2F, 3F, and 4F.',
+        washroomNote: 'Washrooms & filtered bottle refill stations located along the central core behind the main elevator bank on every floor (including LG & 1st Floor).',
+        insiderHack: 'Rooms starting with "LG" (like ENG LG11) are in the Lower Ground auditorium concourse—just take the open central stairs in the lobby down one level!',
+        quadrantLogic: (roomNum, isLG) => {
+          if (isLG) return 'Lower Ground (Basement) Lecture Concourse — down central lobby stairs';
+          const n = parseInt(roomNum.replace(/\D/g, ''), 10) || 100;
+          if (n % 100 < 10) return 'Main Lecture Amphitheatre Core (North Gould St side)';
+          return 'South-East Labs & Classroom Corridor (along Church St)';
+        }
+      },
+      RCC: {
+        code: 'RCC',
+        name: 'Rogers Communications Centre',
+        address: '80 Gould St (East of Church St, North of Gould St)',
+        pinCoords: { x: 741, y: 182 },
+        accessNote: 'Barrier-free ramp entrance on Gould St (80 Gould) and 2nd-floor level access via the Church St skybridge from Kerr Hall East.',
+        washroomNote: 'All-gender and multi-stall washrooms + water refill stations on the 2nd floor near the central atrium and skybridge corridor.',
+        insiderHack: 'RCC 204 and main lecture halls are right on the 2nd floor—the exact same level as the indoor glass skybridge connecting from Kerr Hall East (KHE)!',
+        quadrantLogic: (roomNum) => {
+          const n = parseInt(roomNum.replace(/\D/g, ''), 10) || 204;
+          if (n >= 200 && n < 300) return '2nd Floor Central Atrium & Skybridge Level (Main Lecture Halls)';
+          return 'Studios & Academic Corridor (Access via Central Atrium)';
+        }
+      },
+      DSQ: {
+        code: 'DSQ',
+        name: 'Yonge-Dundas Square Cineplex Lecture Halls',
+        address: '10 Dundas St E — 3rd Floor Cineplex Theatres',
+        pinCoords: { x: 294, y: 355 },
+        accessNote: 'Passenger elevators located inside the 10 Dundas St E main ground lobby and underground PATH concourse directly up to the 3rd-floor Cineplex level.',
+        washroomNote: 'Large theatre concourse washrooms and water fountains located past the Cineplex podium on the 3rd floor.',
+        insiderHack: 'DSQ rooms are actual Cineplex movie theatre auditoriums! Enter 10 Dundas St E (or straight from Dundas Subway Station Northbound platform) and ride the long escalators up to Floor 3.',
+        quadrantLogic: (roomNum) => {
+          const n = parseInt(roomNum.replace(/\D/g, ''), 10) || 6;
+          return `Cineplex Auditorium #${n} (3rd Floor Theatre Concourse)`;
+        }
+      },
+      SLC: {
+        code: 'SLC',
+        name: 'Sheldon & Tracy Levy Student Learning Centre',
+        address: '341 Yonge St (Corner of Yonge St & Gould St)',
+        pinCoords: { x: 262, y: 228 },
+        accessNote: 'Dual elevator banks (North & South cores) plus wide ramp access from Gould St plaza.',
+        washroomNote: 'Single-user all-gender washrooms and high-speed bottle fillers on Floors 4, 5, 6, 7, and 8 near the North elevator core.',
+        insiderHack: 'Skip the busy main staircase during class change—use the North elevator bank behind the amphitheatre or enter via the 2nd floor Library bridge.',
+        quadrantLogic: (roomNum) => {
+          const n = parseInt(roomNum.replace(/\D/g, ''), 10) || 508;
+          const flr = Math.floor(n / 100);
+          const floorThemes = {
+            1: 'Ground Lobby & Amphitheatre',
+            2: 'Bridge Level to Library & POD',
+            3: 'Yorkland / Collaborative Study Level',
+            4: 'The Garden / Quiet Study & Seminar Rooms',
+            5: 'The Sun / Collaborative Rooms & Classrooms',
+            6: 'The Beach / Open Lounge & Seminar Rooms',
+            7: 'The Forest / Quiet Study Level',
+            8: 'The Sky / Top Floor Study & Event Space'
+          };
+          return floorThemes[flr] || 'Upper Collaborative & Seminar Core';
+        }
+      },
+      POD: {
+        code: 'POD',
+        name: 'Podium Building (Jorgenson Hall / Library Complex)',
+        address: '350 Victoria St (Between SLC and Kerr Hall West)',
+        pinCoords: { x: 330, y: 195 },
+        accessNote: 'Accessible via SLC 2nd-floor bridge or 350 Victoria St ground entrance elevators.',
+        washroomNote: 'Washrooms & water bottle refill stations located near the POD/LIB junction and ServiceHub on the 1st, 2nd, and 3rd floors.',
+        insiderHack: 'POD 250 is on the 2nd floor indoor highway connecting SLC/Library to Kerr Hall West (KHW). It is the best indoor hub on campus during snowstorms.',
+        quadrantLogic: () => 'Podium Central Academic Concourse (connecting Library & KHW Pedway)'
+      },
+      LIB: {
+        code: 'LIB',
+        name: 'TMU Library Building',
+        address: '350 Victoria St (Connected to SLC 2nd Floor & POD)',
+        pinCoords: { x: 330, y: 195 },
+        accessNote: 'Accessible via SLC 2nd-floor indoor connector or 350 Victoria St elevators.',
+        washroomNote: 'Washrooms & water bottle fillers available on floors 2 through 10 near the main library elevator core.',
+        insiderHack: 'Enter the Library directly from the 2nd floor of the SLC without stepping outside.',
+        quadrantLogic: () => 'Library Tower & Learning Commons (Enter via 2nd Floor SLC/POD)'
+      }
+    };
+
+    // 2. SVG Path Coordinates & Turn-by-Turn Route Generator per (StartHub, TargetBuilding, IndoorMode)
+    const START_HUBS = {
+      DUNDAS: {
+        id: 'DUNDAS',
+        name: 'Dundas Subway Station',
+        shortName: 'Dundas Stn',
+        coords: { x: 211, y: 462 }
+      },
+      SLC: {
+        id: 'SLC',
+        name: 'SLC Entrance (Gould St)',
+        shortName: 'SLC Gould',
+        coords: { x: 262, y: 272 }
+      },
+      QUAD: {
+        id: 'QUAD',
+        name: 'Kerr Hall Quad (Courtyard)',
+        shortName: 'Kerr Quad',
+        coords: { x: 517, y: 175 }
+      }
+    };
+
+    // Application State
+    const appState = {
+      rawQuery: 'TRS-1-067',
+      startHub: 'DUNDAS',
+      indoorMode: true, // true = Winter/Rain Indoor Bridges preferred
+      parsed: null
+    };
+
+    /**
+     * Smart Room Code Parser
+     * Handles spaces, hyphens, case variations, TRS 1-067 / 2-xxx / 3-xxx, ENG LG11, DSQ 06, etc.
+     */
+    function parseRoomCode(rawInput) {
+      const cleaned = (rawInput || '').trim().toUpperCase();
+      if (!cleaned) return { valid: false };
+
+      // Specialized Pattern 1: TRS rooms e.g. "TRS-1-067", "TRS 1 067", "TRS1-067", "TRS 1067", "TRS 2-119", "TRS 3-120"
+      const trsMatch = cleaned.match(/^TRS[\s\-]*([123])[\s\-]*(\d{2,3}[A-Z]?)$/);
+      if (trsMatch) {
+        const trsLevel = parseInt(trsMatch[1], 10); // 1, 2, or 3
+        const roomDigits = trsMatch[2];
+        const trueFloorNum = trsLevel + 6; // Level 1 -> 7th Floor, Level 2 -> 8th Floor, Level 3 -> 9th Floor
+        const bldg = TMU_BUILDINGS.TRS;
+        return {
+          valid: true,
+          bldgCode: 'TRS',
+          building: bldg,
+          formattedCode: `TRS ${trsLevel}-${roomDigits}`,
+          roomLabel: `Room ${trsLevel}-${roomDigits}`,
+          trueFloorTitle: `${trueFloorNum}th Floor`,
+          floorBadgeText: `TRS LVL ${trsLevel} = ${trueFloorNum}TH FLR`,
+          floorBadgeStyle: 'amber',
+          floorExplanation: `Crucial TMU Quirk: "TRS ${trsLevel}-${roomDigits}" means Academic Level ${trsLevel}, which is actually the <strong>${trueFloorNum}th Floor</strong> of 55 Dundas St W (above the retail mall). Take the escalators or elevator to <strong>Floor ${trueFloorNum}</strong>!`,
+          wingDetail: bldg.quadrantLogic(roomDigits, trsLevel),
+          floorNumberNumeric: trueFloorNum
+        };
+      }
+
+      // Specialized Pattern 2: Lower Ground rooms e.g. "ENG LG11", "ENG-LG-11", "KHW LG04"
+      const lgMatch = cleaned.match(/^([A-Z]{3})[\s\-]*LG[\s\-]*(\d{1,3}[A-Z]?)$/);
+      if (lgMatch && TMU_BUILDINGS[lgMatch[1]]) {
+        const bldgCode = lgMatch[1];
+        const roomDigits = lgMatch[2];
+        const bldg = TMU_BUILDINGS[bldgCode];
+        return {
+          valid: true,
+          bldgCode,
+          building: bldg,
+          formattedCode: `${bldgCode} LG${roomDigits}`,
+          roomLabel: `Room LG${roomDigits}`,
+          trueFloorTitle: `Lower Ground (LG)`,
+          floorBadgeText: `BASEMENT / LG LEVEL`,
+          floorBadgeStyle: 'sky',
+          floorExplanation: `"LG" stands for <strong>Lower Ground</strong> (one level below the street lobby). Enter ${bldg.name} at street level and take the central stairs or elevator down 1 level to LG.`,
+          wingDetail: bldg.quadrantLogic(roomDigits, true),
+          floorNumberNumeric: 0
+        };
+      }
+
+      // Specialized Pattern 3: DSQ Cineplex Theatres e.g. "DSQ 06", "DSQ-6", "DSQ 11"
+      const dsqMatch = cleaned.match(/^DSQ[\s\-]*(\d{1,2}[A-Z]?)$/);
+      if (dsqMatch) {
+        const num = dsqMatch[1].padStart(2, '0');
+        const bldg = TMU_BUILDINGS.DSQ;
+        return {
+          valid: true,
+          bldgCode: 'DSQ',
+          building: bldg,
+          formattedCode: `DSQ ${num}`,
+          roomLabel: `Auditorium #${parseInt(num, 10)}`,
+          trueFloorTitle: `3rd Floor (Cineplex)`,
+          floorBadgeText: `CINEPLEX THEATRE`,
+          floorBadgeStyle: 'amber',
+          floorExplanation: `DSQ lecture halls are inside the <strong>Cineplex Odeon Theatre at 10 Dundas St E</strong>. Ride the long escalators from the ground lobby up to the 3rd Floor concourse to find Auditorium ${num}.`,
+          wingDetail: bldg.quadrantLogic(num),
+          floorNumberNumeric: 3
+        };
+      }
+
+      // Standard Pattern 4: Building Code + 2 to 4 digits (e.g. KHW 271, RCC 204, KHE 121, SLC 508, POD 250, KHN 304, KHS 041)
+      const stdMatch = cleaned.match(/^([A-Z]{3})[\s\-]*([0-9]{2,4}[A-Z]?)$/);
+      if (stdMatch && TMU_BUILDINGS[stdMatch[1]]) {
+        const bldgCode = stdMatch[1];
+        const roomStr = stdMatch[2];
+        const bldg = TMU_BUILDINGS[bldgCode];
+
+        // Special fallback if user typed e.g. "TRS 1067" without hyphen
+        if (bldgCode === 'TRS' && roomStr.length === 4 && ['1', '2', '3'].includes(roomStr[0])) {
+          const trsLevel = parseInt(roomStr[0], 10);
+          const roomDigits = roomStr.slice(1);
+          const trueFloorNum = trsLevel + 6;
+          return {
+            valid: true,
+            bldgCode: 'TRS',
+            building: bldg,
+            formattedCode: `TRS ${trsLevel}-${roomDigits}`,
+            roomLabel: `Room ${trsLevel}-${roomDigits}`,
+            trueFloorTitle: `${trueFloorNum}th Floor`,
+            floorBadgeText: `TRS LVL ${trsLevel} = ${trueFloorNum}TH FLR`,
+            floorBadgeStyle: 'amber',
+            floorExplanation: `Crucial TMU Quirk: "TRS ${trsLevel}-${roomDigits}" means Academic Level ${trsLevel}, which is actually the <strong>${trueFloorNum}th Floor</strong> of 55 Dundas St W. Take the escalators/elevator to Floor ${trueFloorNum}!`,
+            wingDetail: bldg.quadrantLogic(roomDigits, trsLevel),
+            floorNumberNumeric: trueFloorNum
+          };
+        }
+
+        // Extract floor digit
+        let floorNum = 1;
+        if (roomStr.startsWith('0')) {
+          floorNum = 0; // Basement / Lower level in Kerr Hall or POD
+        } else if (roomStr.length === 4) {
+          floorNum = parseInt(roomStr.slice(0, 2), 10);
+        } else {
+          floorNum = parseInt(roomStr[0], 10);
+        }
+
+        const ordinalSuffix = (n) => {
+          if (n === 0) return 'Basement (0 Level)';
+          const s = ['th', 'st', 'nd', 'rd'];
+          const v = n % 100;
+          return n + (s[(v - 20) % 10] || s[v] || s[0]) + ' Floor';
+        };
+
+        const floorTitle = ordinalSuffix(floorNum);
+        let explanation = `Located on the <strong>${floorTitle}</strong> of ${bldg.name}. `;
+        let badgeText = `STANDARD FLOOR ${floorNum}`;
+        let badgeStyle = 'emerald';
+
+        if (['KHW', 'KHE', 'KHN', 'KHS'].includes(bldgCode)) {
+          if (floorNum === 0) {
+            badgeText = 'KERR BASEMENT TRAP';
+            badgeStyle = 'amber';
+            explanation = `<strong>Warning:</strong> Kerr Hall's Basement (0-level) does NOT loop around all 4 wings. Walk on the 1st or 2nd floor to ${bldg.name} first, then take the stairs down to ${roomStr}!`;
+          } else {
+            explanation += `Kerr Hall Floors 1, 2 & 3 form a continuous square loop across N, E, S, and W wings.`;
+          }
+        } else if (bldgCode === 'RCC' && floorNum === 2) {
+          badgeText = 'SKYBRIDGE LEVEL (2F)';
+          badgeStyle = 'sky';
+          explanation = `Located on the <strong>2nd Floor</strong> of RCC—the exact same level as the enclosed glass skybridge connecting across Church St from Kerr Hall East (KHE)!`;
+        } else if (bldgCode === 'POD' && floorNum === 2) {
+          badgeText = 'INDOOR PEDWAY LEVEL';
+          badgeStyle = 'sky';
+          explanation = `Located on the <strong>2nd Floor Indoor Connector</strong> level linking SLC, Library, POD, and Kerr Hall West (KHW).`;
+        }
+
+        return {
+          valid: true,
+          bldgCode,
+          building: bldg,
+          formattedCode: `${bldgCode} ${roomStr}`,
+          roomLabel: `Room ${roomStr}`,
+          trueFloorTitle: floorTitle,
+          floorBadgeText: badgeText,
+          floorBadgeStyle: badgeStyle,
+          floorExplanation: explanation,
+          wingDetail: bldg.quadrantLogic(roomStr, false),
+          floorNumberNumeric: floorNum
+        };
+      }
+
+      // Building-only query (e.g. user types "RCC" or "KHW")
+      if (TMU_BUILDINGS[cleaned]) {
+        const defaultSamples = {
+          KHW: 'KHW 271', KHE: 'KHE 121', KHN: 'KHN 304', KHS: 'KHS 239',
+          TRS: 'TRS-1-067', ENG: 'ENG LG11', RCC: 'RCC 204', DSQ: 'DSQ 06',
+          SLC: 'SLC 508', POD: 'POD 250', LIB: 'LIB 405'
+        };
+        return parseRoomCode(defaultSamples[cleaned]);
+      }
+
+      return { valid: false };
+    }
+
+    /**
+     * Route & SVG Path Generator
+     * Calculates realistic walking time, distance, exposure badge, SVG path coordinates, and step-by-step instructions
+     */
+    function buildRouteData(startHubId, parsedRoom, indoorMode) {
+      const bldgCode = parsedRoom.bldgCode;
+      const bldg = parsedRoom.building;
+      const hub = START_HUBS[startHubId];
+
+      // Default route object
+      let walkMin = 4;
+      let distanceM = 300;
+      let exposureText = indoorMode ? 'INDOOR SHORTCUT' : 'DIRECT OUTDOOR';
+      let exposureStyle = indoorMode ? 'sky' : 'slate';
+      let svgPoints = [];
+      let steps = [];
+
+      // Helper to convert array of {x,y} to smooth SVG path string
+      const toSvgPath = (pts) => pts.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+
+      // ---------------- START HUB 1: DUNDAS SUBWAY STATION ----------------
+      if (startHubId === 'DUNDAS') {
+        if (bldgCode === 'TRS') {
+          if (indoorMode) {
+            walkMin = 3;
+            distanceM = 190;
+            exposureText = '100% INDOOR PATH';
+            exposureStyle = 'emerald';
+            svgPoints = [
+              { x: 211, y: 462 },
+              { x: 165, y: 446 },
+              { x: 127, y: 405 }
+            ];
+            steps = [
+              { title: 'Exit Dundas Station into Atrium on Bay (PATH)', desc: 'From the Southbound/Westbound platform or Yonge concourse, follow signs into the Atrium on Bay indoor concourse—do not go outside to street level.' },
+              { title: 'Walk West Through Indoor Concourse to TRS Entrance', desc: 'Follow the underground corridor past the food court toward the Bay & Dundas / Ted Rogers School of Management entrance.' },
+              { title: `Ride Escalators or Elevator to ${parsedRoom.trueFloorTitle}`, desc: `Take the dedicated TRS escalators up to Academic Level (${parsedRoom.trueFloorTitle} of 55 Dundas W) and follow signage to ${parsedRoom.formattedCode} (${parsedRoom.wingDetail}).` }
+            ];
+          } else {
+            walkMin = 4;
+            distanceM = 230;
+            exposureText = 'OUTDOOR SIDEWALK';
+            exposureStyle = 'slate';
+            svgPoints = [
+              { x: 211, y: 462 },
+              { x: 127, y: 462 },
+              { x: 127, y: 405 }
+            ];
+            steps = [
+              { title: 'Exit Dundas Station to South-West Corner of Yonge & Dundas', desc: 'Head out to the Dundas St W sidewalk facing west toward Bay St.' },
+              { title: 'Walk 1 Block West Along Dundas St W to 55 Dundas St W', desc: 'Walk past the Canadian Tire / Best Buy entrance to the main TMU TRS glass atrium doors at 55 Dundas St W.' },
+              { title: `Ascend to ${parsedRoom.trueFloorTitle}`, desc: `Remember: TRS classrooms start on the 7th Floor! Take the escalators/elevators up to ${parsedRoom.trueFloorTitle} for ${parsedRoom.formattedCode}.` }
+            ];
+          }
+        } else if (bldgCode === 'DSQ') {
+          walkMin = 2;
+          distanceM = 110;
+          exposureText = indoorMode ? '100% INDOOR LINK' : '1 MIN CROSSING';
+          exposureStyle = 'emerald';
+          svgPoints = [
+            { x: 211, y: 462 },
+            { x: 255, y: 410 },
+            { x: 294, y: 355 }
+          ];
+          steps = [
+            { title: 'Enter 10 Dundas St E directly from Dundas Station', desc: indoorMode ? 'From the Northbound Dundas subway platform, exit directly into the 10 Dundas St E underground concourse.' : 'Cross to the North-East corner of Yonge & Dundas and enter 10 Dundas St E.' },
+            { title: 'Take the Long Cineplex Escalators to the 3rd Floor', desc: 'Ride the central atrium escalators past the food court and Winners up to the 3rd Floor Cineplex Odeon theatre lobby.' },
+            { title: `Locate ${parsedRoom.formattedCode} (${parsedRoom.roomLabel})`, desc: `Show your OneCard if asked at the student podium and head down the theatre hallway to ${parsedRoom.roomLabel}.` }
+          ];
+        } else if (bldgCode === 'SLC') {
+          walkMin = 4;
+          distanceM = 280;
+          exposureText = indoorMode ? 'PARTIAL INDOOR (DSQ)' : 'DIRECT YONGE WALK';
+          exposureStyle = indoorMode ? 'sky' : 'slate';
+          svgPoints = indoorMode
+            ? [{ x: 211, y: 462 }, { x: 255, y: 365 }, { x: 255, y: 272 }, { x: 262, y: 228 }]
+            : [{ x: 211, y: 462 }, { x: 211, y: 272 }, { x: 262, y: 272 }, { x: 262, y: 228 }];
+          steps = [
+            { title: 'Head North on Yonge St from Dundas Station', desc: indoorMode ? 'Pass through 10 Dundas St E ground concourse to exit closer to Gould St, shielding yourself from half the wind on Yonge.' : 'Walk 1 block north up Yonge St past Yonge-Dundas Square to Gould St (341 Yonge St).' },
+            { title: 'Enter the SLC at Gould St & Yonge St', desc: 'Scan your TMU OneCard at the main glass turnstiles on the ground floor or 2nd floor amphitheatre.' },
+            { title: `Reach ${parsedRoom.formattedCode} on ${parsedRoom.trueFloorTitle}`, desc: `Use the North elevator bank (behind the amphitheatre) to go to ${parsedRoom.trueFloorTitle} (${parsedRoom.wingDetail}).` }
+          ];
+        } else if (['POD', 'LIB', 'KHW', 'KHN', 'KHS'].includes(bldgCode)) {
+          if (indoorMode) {
+            walkMin = bldgCode === 'POD' || bldgCode === 'LIB' ? 5 : 6;
+            distanceM = bldgCode === 'POD' || bldgCode === 'LIB' ? 350 : 440;
+            exposureText = 'SLC → POD → KHW BRIDGE';
+            exposureStyle = 'sky';
+            svgPoints = [
+              { x: 211, y: 462 },
+              { x: 211, y: 272 },
+              { x: 262, y: 228 },
+              { x: 330, y: 195 },
+              { x: 380, y: 185 },
+              bldg.pinCoords
+            ];
+            steps = [
+              { title: 'Walk North 1 Block on Yonge St into the SLC (341 Yonge)', desc: 'Walk up Yonge St from Dundas Station and immediately enter the warm SLC building at the corner of Gould St.' },
+              { title: 'Take the 2nd Floor SLC → Library → POD Indoor Connector', desc: 'Go up the SLC amphitheatre steps to the 2nd floor and walk east through the Library lobby into the POD 2nd-floor concourse.' },
+              bldgCode === 'POD' || bldgCode === 'LIB'
+                ? { title: `Arrive at ${parsedRoom.formattedCode}`, desc: `Follow POD/LIB signage to ${parsedRoom.trueFloorTitle} (${parsedRoom.wingDetail}).` }
+                : { title: `Cross the 2nd Floor Indoor Pedway into Kerr Hall West (KHW)`, desc: `Continue straight across the enclosed 2nd-floor bridge over Victoria St into KHW 2nd floor, then follow the Kerr Hall loop to ${parsedRoom.formattedCode} (${parsedRoom.trueFloorTitle}).` }
+            ];
+          } else {
+            walkMin = 6;
+            distanceM = 460;
+            exposureText = 'OUTDOOR VIA GOULD';
+            exposureStyle = 'slate';
+            svgPoints = [
+              { x: 211, y: 462 },
+              { x: 211, y: 282 },
+              { x: 377, y: 282 },
+              { x: 414, y: 245 },
+              bldg.pinCoords
+            ];
+            steps = [
+              { title: 'Walk North on Yonge St to Gould St', desc: 'Head 1 block north from Dundas Station to the Gould St pedestrian zone.' },
+              { title: 'Walk East Along Gould St Past the SLC & Lake Devo', desc: 'Turn right onto Gould St and walk east toward Victoria St and Kerr Hall.' },
+              { title: `Enter ${bldg.name} and Head to ${parsedRoom.trueFloorTitle}`, desc: `Enter via the Victoria St or Quad doors and go to ${parsedRoom.formattedCode} (${parsedRoom.wingDetail}).` }
+            ];
+          }
+        } else if (bldgCode === 'KHE' || bldgCode === 'RCC') {
+          if (indoorMode) {
+            walkMin = bldgCode === 'KHE' ? 7 : 8;
+            distanceM = bldgCode === 'KHE' ? 540 : 620;
+            exposureText = bldgCode === 'RCC' ? 'POD + CHURCH SKYBRIDGE' : 'SLC → POD → KERR LOOP';
+            exposureStyle = 'sky';
+            svgPoints = bldgCode === 'RCC'
+              ? [{ x: 211, y: 462 }, { x: 211, y: 272 }, { x: 262, y: 228 }, { x: 330, y: 195 }, { x: 414, y: 185 }, { x: 414, y: 244 }, { x: 622, y: 244 }, { x: 622, y: 166 }, { x: 664, y: 164 }, { x: 741, y: 182 }]
+              : [{ x: 211, y: 462 }, { x: 211, y: 272 }, { x: 262, y: 228 }, { x: 330, y: 195 }, { x: 414, y: 185 }, { x: 414, y: 244 }, { x: 622, y: 244 }, { x: 622, y: 166 }];
+            steps = [
+              { title: 'Enter SLC at Yonge & Gould and Take 2F Bridge to KHW', desc: 'Walk 1 block north from Dundas Stn into SLC, then walk east on the 2nd floor through LIB/POD across the bridge into Kerr Hall West (KHW).' },
+              { title: 'Walk Indoors Along the Kerr Hall 2nd Floor Loop to KHE', desc: 'Stay warm inside Kerr Hall! Walk through the 2nd floor of KHS (South wing) into Kerr Hall East (KHE).' },
+              bldgCode === 'RCC'
+                ? { title: 'Cross the 2nd Floor Skybridge Over Church St into RCC', desc: `At KHE 2nd floor (near the South-East stairwell), walk across the enclosed glass skybridge over Church St directly into RCC 2nd Floor for ${parsedRoom.formattedCode}!` }
+                : { title: `Locate ${parsedRoom.formattedCode} in Kerr Hall East`, desc: `From the KHE 2nd floor corridor, head to ${parsedRoom.trueFloorTitle} (${parsedRoom.wingDetail}).` }
+            ];
+          } else {
+            walkMin = 7;
+            distanceM = 560;
+            exposureText = 'DIRECT VIA GOULD ST';
+            exposureStyle = 'slate';
+            svgPoints = [
+              { x: 211, y: 462 },
+              { x: 211, y: 282 },
+              { x: 622, y: 282 },
+              bldg.pinCoords
+            ];
+            steps = [
+              { title: 'Walk North on Yonge St to Gould St', desc: 'Exit Dundas Station and walk 1 block north to Gould St.' },
+              { title: 'Walk East Down Gould St Pedestrian Zone to Church St', desc: 'Walk straight east past Victoria St, Lake Devo, and Kerr Hall South.' },
+              { title: `Enter ${bldg.name} and Locate ${parsedRoom.formattedCode}`, desc: `Cross or turn at Church St into ${bldg.name} and go to ${parsedRoom.trueFloorTitle} (${parsedRoom.wingDetail}).` }
+            ];
+          }
+        } else if (bldgCode === 'ENG') {
+          walkMin = 6;
+          distanceM = 470;
+          exposureText = indoorMode ? 'INDOOR VIA SLC/KHS' : 'OUTDOOR VIA DUNDAS/CHURCH';
+          exposureStyle = indoorMode ? 'sky' : 'slate';
+          svgPoints = indoorMode
+            ? [{ x: 211, y: 462 }, { x: 211, y: 272 }, { x: 262, y: 228 }, { x: 330, y: 195 }, { x: 414, y: 185 }, { x: 414, y: 244 }, { x: 595, y: 244 }, { x: 595, y: 360 }]
+            : [{ x: 211, y: 462 }, { x: 595, y: 462 }, { x: 595, y: 360 }];
+          steps = indoorMode
+            ? [
+                { title: 'Enter SLC and Use 2F Bridge into Kerr Hall', desc: 'Walk 1 block north into SLC, cross the 2nd floor POD bridge into KHW, and walk indoors through KHS (Kerr Hall South) toward Church St.' },
+                { title: 'Exit KHS South-East Door & Cross Gould into ENG', desc: 'Pop out at the South-East corner of Kerr Hall at Gould & Church and step immediately into the George Vari Engineering Building (ENG).' },
+                { title: `Navigate to ${parsedRoom.formattedCode} (${parsedRoom.trueFloorTitle})`, desc: `${parsedRoom.floorNumberNumeric === 0 ? 'Take the central open staircase in the ENG lobby down 1 flight to the Lower Ground (LG) level.' : `Take the central elevator or stairs up to ${parsedRoom.trueFloorTitle}.`}` }
+              ]
+            : [
+                { title: 'Walk East on Dundas St E or Gould St toward Church St', desc: 'From Dundas Station, walk east past Victoria and Bond St toward Church St.' },
+                { title: 'Turn North to 245 Church St (George Vari Engineering)', desc: 'Enter the main ENG glass doors at the corner of Church & Gould St.' },
+                { title: `Reach ${parsedRoom.formattedCode} (${parsedRoom.trueFloorTitle})`, desc: `${parsedRoom.floorNumberNumeric === 0 ? 'Walk down the central lobby stairs one level to Lower Ground (LG).' : `Take the central elevator or stairs to ${parsedRoom.trueFloorTitle}.`}` }
+              ];
+        }
+      }
+
+      // ---------------- START HUB 2: SLC ENTRANCE (GOULD ST) ----------------
+      else if (startHubId === 'SLC') {
+        if (bldgCode === 'SLC') {
+          walkMin = 1;
+          distanceM = 45;
+          exposureText = '100% INDOOR (SAME BLDG)';
+          exposureStyle = 'emerald';
+          svgPoints = [{ x: 262, y: 272 }, { x: 262, y: 228 }];
+          steps = [
+            { title: 'Scan Your OneCard at the SLC Gould St Turnstiles', desc: 'Enter the main SLC lobby at 341 Yonge / Gould St.' },
+            { title: 'Use the North Elevator Core Behind the Amphitheatre', desc: 'Insider tip: The North elevators (tucked behind the 2nd-floor steps) are usually faster than the main South elevators.' },
+            { title: `Arrive at ${parsedRoom.formattedCode} on ${parsedRoom.trueFloorTitle}`, desc: `Exit on ${parsedRoom.trueFloorTitle} (${parsedRoom.wingDetail}).` }
+          ];
+        } else if (['POD', 'LIB', 'KHW', 'KHN', 'KHS', 'KHE', 'RCC'].includes(bldgCode)) {
+          if (indoorMode) {
+            const timeMap = { POD: 2, LIB: 2, KHW: 3, KHS: 4, KHN: 4, KHE: 5, RCC: 6 };
+            const distMap = { POD: 120, LIB: 110, KHW: 190, KHS: 260, KHN: 280, KHE: 340, RCC: 420 };
+            walkMin = timeMap[bldgCode] || 4;
+            distanceM = distMap[bldgCode] || 250;
+            exposureText = '100% INDOOR BRIDGES';
+            exposureStyle = 'emerald';
+
+            if (bldgCode === 'POD' || bldgCode === 'LIB') {
+              svgPoints = [{ x: 262, y: 272 }, { x: 262, y: 228 }, { x: 330, y: 195 }];
+            } else if (bldgCode === 'KHW') {
+              svgPoints = [{ x: 262, y: 272 }, { x: 262, y: 228 }, { x: 330, y: 195 }, { x: 414, y: 185 }, { x: 414, y: 166 }];
+            } else if (bldgCode === 'KHN') {
+              svgPoints = [{ x: 262, y: 272 }, { x: 262, y: 228 }, { x: 330, y: 195 }, { x: 414, y: 185 }, { x: 414, y: 88 }, { x: 518, y: 88 }];
+            } else if (bldgCode === 'KHS') {
+              svgPoints = [{ x: 262, y: 272 }, { x: 262, y: 228 }, { x: 330, y: 195 }, { x: 414, y: 185 }, { x: 414, y: 244 }, { x: 518, y: 244 }];
+            } else if (bldgCode === 'KHE') {
+              svgPoints = [{ x: 262, y: 272 }, { x: 262, y: 228 }, { x: 330, y: 195 }, { x: 414, y: 185 }, { x: 414, y: 244 }, { x: 622, y: 244 }, { x: 622, y: 166 }];
+            } else if (bldgCode === 'RCC') {
+              svgPoints = [{ x: 262, y: 272 }, { x: 262, y: 228 }, { x: 330, y: 195 }, { x: 414, y: 185 }, { x: 414, y: 244 }, { x: 622, y: 244 }, { x: 622, y: 166 }, { x: 664, y: 164 }, { x: 741, y: 182 }];
+            }
+
+            steps = [
+              { title: 'Take the SLC 2nd Floor Indoor Link into the Library & POD', desc: 'From the SLC Gould St lobby, walk up the amphitheatre steps to Floor 2 and head east through the glass doors into the Library / Podium (POD) 2nd floor.' },
+              bldgCode === 'POD' || bldgCode === 'LIB'
+                ? { title: `Navigate Indoors to ${parsedRoom.formattedCode}`, desc: `You are now inside the POD/LIB complex! Follow corridor signs to ${parsedRoom.trueFloorTitle} (${parsedRoom.wingDetail}).` }
+                : { title: 'Cross the 2nd Floor Pedway Over Victoria St into KHW', desc: 'Follow the POD 2nd-floor hallway past the ServiceHub and walk across the enclosed indoor bridge directly into Kerr Hall West (KHW) 2nd floor.' },
+              ...(bldgCode !== 'POD' && bldgCode !== 'LIB'
+                ? [
+                    bldgCode === 'RCC'
+                      ? { title: 'Walk the Kerr Hall 2F Loop to KHE & Cross the Church St Skybridge', desc: `Walk south-east along the 2nd floor of Kerr Hall to KHE, then cross the 2nd-floor skybridge over Church St straight into RCC for ${parsedRoom.formattedCode}! Zero outdoor steps!` }
+                      : { title: `Follow the Kerr Hall Loop to ${parsedRoom.formattedCode}`, desc: `Stay on the continuous Kerr Hall indoor hallway to ${bldg.name} and go to ${parsedRoom.trueFloorTitle} (${parsedRoom.wingDetail}).` }
+                  ]
+                : [])
+            ];
+          } else {
+            walkMin = bldgCode === 'RCC' ? 5 : 3;
+            distanceM = bldgCode === 'RCC' ? 390 : 240;
+            exposureText = 'OUTDOOR GOULD WALK';
+            exposureStyle = 'slate';
+            svgPoints = [
+              { x: 262, y: 272 },
+              { x: 518, y: 282 },
+              bldg.pinCoords
+            ];
+            steps = [
+              { title: 'Walk East Along Gould St Pedestrian Zone', desc: 'From the SLC entrance, walk east past Victoria St and the Devonian Pond (Lake Devo).' },
+              { title: `Enter ${bldg.name}`, desc: `Turn into the nearest entrance for ${bldg.name} (${bldg.address}).` },
+              { title: `Go to ${parsedRoom.formattedCode} on ${parsedRoom.trueFloorTitle}`, desc: `Follow hallway signage to ${parsedRoom.wingDetail}.` }
+            ];
+          }
+        } else if (bldgCode === 'TRS') {
+          walkMin = 5;
+          distanceM = 340;
+          exposureText = indoorMode ? 'PATH VIA DUNDAS STN' : 'OUTDOOR YONGE WALK';
+          exposureStyle = indoorMode ? 'sky' : 'slate';
+          svgPoints = indoorMode
+            ? [{ x: 262, y: 272 }, { x: 211, y: 272 }, { x: 211, y: 446 }, { x: 127, y: 405 }]
+            : [{ x: 262, y: 272 }, { x: 211, y: 272 }, { x: 211, y: 462 }, { x: 127, y: 462 }, { x: 127, y: 405 }];
+          steps = [
+            { title: 'Walk South 1 Block on Yonge St toward Dundas', desc: 'Head south from SLC along Yonge St toward Yonge-Dundas Square.' },
+            { title: indoorMode ? 'Duck into Atrium on Bay / Dundas Station Indoor Concourse' : 'Turn West onto Dundas St W to 55 Dundas St W', desc: indoorMode ? 'Enter the indoor concourse at Yonge & Dundas and walk west underground into TRS.' : 'Walk 1 block west along Dundas St W to the main TRS entrance near Bay St.' },
+            { title: `Take Escalators to ${parsedRoom.trueFloorTitle} (${parsedRoom.formattedCode})`, desc: `Remember: TRS Level 1 is the 7th Floor! Ride the escalators up to ${parsedRoom.trueFloorTitle}.` }
+          ];
+        } else if (bldgCode === 'DSQ') {
+          walkMin = 2;
+          distanceM = 150;
+          exposureText = '1 BLOCK WALK';
+          exposureStyle = 'emerald';
+          svgPoints = [{ x: 262, y: 272 }, { x: 294, y: 355 }];
+          steps = [
+            { title: 'Walk South Across Gould St to 10 Dundas St E', desc: '10 Dundas St E is immediately south-east of the SLC across O\'Keefe Lane / Gould St.' },
+            { title: 'Ride Escalators to the 3rd Floor Cineplex Level', desc: 'Enter 10 Dundas St E and take the long central escalators up to Floor 3.' },
+            { title: `Head to ${parsedRoom.formattedCode} (${parsedRoom.roomLabel})`, desc: `Walk past the theatre concession area to ${parsedRoom.roomLabel}.` }
+          ];
+        } else if (bldgCode === 'ENG') {
+          walkMin = 4;
+          distanceM = 280;
+          exposureText = indoorMode ? 'INDOOR VIA POD/KHS' : 'STRAIGHT DOWN GOULD';
+          exposureStyle = indoorMode ? 'sky' : 'slate';
+          svgPoints = indoorMode
+            ? [{ x: 262, y: 272 }, { x: 262, y: 228 }, { x: 330, y: 195 }, { x: 414, y: 185 }, { x: 414, y: 244 }, { x: 595, y: 244 }, { x: 595, y: 360 }]
+            : [{ x: 262, y: 272 }, { x: 595, y: 282 }, { x: 595, y: 360 }];
+          steps = [
+            { title: indoorMode ? 'Walk Indoors via SLC 2F → POD → KHW → KHS' : 'Walk East Down Gould St to Church St', desc: indoorMode ? 'Use the 2nd-floor bridge into Kerr Hall and walk east through Kerr Hall South (KHS) to avoid the wind.' : 'Walk straight east along the Gould St pedestrian zone past Lake Devo and Bond St.' },
+            { title: 'Enter George Vari Engineering (ENG) at Gould & Church', desc: 'Cross Gould St into the main ENG glass lobby.' },
+            { title: `Go to ${parsedRoom.formattedCode} on ${parsedRoom.trueFloorTitle}`, desc: `${parsedRoom.floorNumberNumeric === 0 ? 'Take the central lobby stairs down 1 level to Lower Ground (LG).' : `Take the central elevator or stairs to ${parsedRoom.trueFloorTitle}.`}` }
+          ];
+        }
+      }
+
+      // ---------------- START HUB 3: KERR HALL QUAD (COURTYARD) ----------------
+      else if (startHubId === 'QUAD') {
+        if (['KHW', 'KHE', 'KHN', 'KHS'].includes(bldgCode)) {
+          walkMin = 1;
+          distanceM = 65;
+          exposureText = 'DIRECT QUAD ENTRY';
+          exposureStyle = 'emerald';
+          svgPoints = [{ x: 517, y: 175 }, bldg.pinCoords];
+          steps = [
+            { title: `Walk Across the Quad into ${bldg.name} (${bldgCode})`, desc: `From the centre of Kerr Hall Quad, follow the paved diagonal pathway directly to the ${bldg.name} courtyard doors.` },
+            { title: indoorMode && parsedRoom.floorNumberNumeric === 0 ? 'Use 1st Floor Corridor Before Going to Basement' : `Take the Wing Stairs or Elevator to ${parsedRoom.trueFloorTitle}`, desc: parsedRoom.floorNumberNumeric === 0 ? 'Remember: Kerr Hall basement does not connect between wings. Enter the exact wing first, then go down to the 0-level.' : `Head to ${parsedRoom.trueFloorTitle} and follow room numbers to ${parsedRoom.formattedCode} (${parsedRoom.wingDetail}).` }
+          ];
+        } else if (bldgCode === 'RCC') {
+          walkMin = 2;
+          distanceM = 160;
+          exposureText = indoorMode ? '2F CHURCH SKYBRIDGE' : 'CHURCH ST CROSSING';
+          exposureStyle = indoorMode ? 'emerald' : 'slate';
+          svgPoints = indoorMode
+            ? [{ x: 517, y: 175 }, { x: 622, y: 166 }, { x: 664, y: 164 }, { x: 741, y: 182 }]
+            : [{ x: 517, y: 175 }, { x: 622, y: 244 }, { x: 664, y: 244 }, { x: 741, y: 182 }];
+          steps = [
+            { title: 'Enter Kerr Hall East (KHE) from the Quad Courtyard', desc: 'Walk east across the Quad into the KHE doors.' },
+            { title: indoorMode ? 'Take the 2nd Floor Enclosed Skybridge Over Church St' : 'Exit onto Church St and Cross into RCC', desc: indoorMode ? 'Go up to the 2nd floor of KHE (near the South-East corner) and walk across the glass skybridge directly into RCC 2nd Floor!' : 'Cross Church St at the Gould St crosswalk and enter 80 Gould St (RCC).' },
+            { title: `Locate ${parsedRoom.formattedCode} (${parsedRoom.trueFloorTitle})`, desc: `Follow the RCC atrium signage to ${parsedRoom.wingDetail}.` }
+          ];
+        } else if (bldgCode === 'POD' || bldgCode === 'LIB' || bldgCode === 'SLC') {
+          walkMin = bldgCode === 'SLC' ? 3 : 2;
+          distanceM = bldgCode === 'SLC' ? 230 : 140;
+          exposureText = indoorMode ? '2F KHW-POD BRIDGE' : 'DIRECT VIA VICTORIA';
+          exposureStyle = indoorMode ? 'emerald' : 'slate';
+          svgPoints = indoorMode
+            ? [{ x: 517, y: 175 }, { x: 414, y: 175 }, { x: 330, y: 195 }, ...(bldgCode === 'SLC' ? [{ x: 262, y: 228 }] : [])]
+            : [{ x: 517, y: 175 }, { x: 517, y: 282 }, { x: 330, y: 282 }, bldg.pinCoords];
+          steps = [
+            { title: 'Enter Kerr Hall West (KHW) and Go to the 2nd Floor', desc: 'Walk west across the Quad into KHW and step up to the 2nd floor.' },
+            { title: 'Cross the 2nd Floor Indoor Bridge Over Victoria St into POD', desc: 'Take the enclosed 2nd-floor pedway near the South-West corner of KHW straight into the POD / Library 2nd floor.' },
+            { title: `Arrive at ${parsedRoom.formattedCode} (${parsedRoom.trueFloorTitle})`, desc: bldgCode === 'SLC' ? `Continue west through the Library 2nd floor lobby straight into the SLC and take the elevator to ${parsedRoom.trueFloorTitle}.` : `Follow POD/LIB signage to ${parsedRoom.trueFloorTitle} (${parsedRoom.wingDetail}).` }
+          ];
+        } else if (bldgCode === 'ENG') {
+          walkMin = 2;
+          distanceM = 175;
+          exposureText = 'QUICK GOULD CROSSING';
+          exposureStyle = 'emerald';
+          svgPoints = [{ x: 517, y: 175 }, { x: 555, y: 244 }, { x: 595, y: 360 }];
+          steps = [
+            { title: 'Exit the South-East Archway of Kerr Hall Quad onto Gould St', desc: 'Walk south through Kerr Hall South (KHS) out to the Gould & Church intersection.' },
+            { title: 'Cross Gould St into George Vari Engineering (ENG)', desc: 'ENG (245 Church St) is directly across the street on the south side of Gould St.' },
+            { title: `Go to ${parsedRoom.formattedCode} (${parsedRoom.trueFloorTitle})`, desc: `${parsedRoom.floorNumberNumeric === 0 ? 'Take the central lobby stairs down 1 level to Lower Ground (LG).' : `Use the central stairs or elevator to reach ${parsedRoom.trueFloorTitle}.`}` }
+          ];
+        } else if (bldgCode === 'DSQ' || bldgCode === 'TRS') {
+          walkMin = bldgCode === 'DSQ' ? 4 : 7;
+          distanceM = bldgCode === 'DSQ' ? 310 : 520;
+          exposureText = indoorMode ? 'KHW → SLC INDOOR LINK' : 'OUTDOOR VIA GOULD/YONGE';
+          exposureStyle = indoorMode ? 'sky' : 'slate';
+          svgPoints = indoorMode
+            ? [{ x: 517, y: 175 }, { x: 414, y: 175 }, { x: 330, y: 195 }, { x: 262, y: 228 }, { x: 262, y: 272 }, bldg.pinCoords]
+            : [{ x: 517, y: 175 }, { x: 517, y: 282 }, { x: 211, y: 282 }, bldg.pinCoords];
+          steps = [
+            { title: indoorMode ? 'Cut Indoors Through KHW 2F → POD → SLC' : 'Exit Quad South onto Gould St and Walk West toward Yonge St', desc: indoorMode ? 'Enter KHW, cross the 2nd-floor bridge through POD & Library, and exit at the SLC Yonge/Gould doors.' : 'Walk west along the Gould St pedestrian zone past Lake Devo and the SLC.' },
+            bldgCode === 'DSQ'
+              ? { title: 'Enter 10 Dundas St E and Ride Escalators to Floor 3', desc: `Step across into 10 Dundas St E and take the long Cineplex escalators up to the 3rd floor for ${parsedRoom.formattedCode}.` }
+              : { title: `Continue South-West to TRS (55 Dundas St W) & Go to ${parsedRoom.trueFloorTitle}`, desc: `Head 1 block south on Yonge and west on Dundas (or via Atrium on Bay PATH) into TRS, then take the escalators up to ${parsedRoom.trueFloorTitle}.` }
+          ];
+        }
+      }
+
+      return {
+        walkMin,
+        distanceM,
+        exposureText,
+        exposureStyle,
+        svgPathString: toSvgPath(svgPoints),
+        steps
+      };
+    }
+
+    /**
+     * Render All UI Components, Metric Cards, Step List, Insider Box, and SVG Map Highlights
+     */
+    function renderApplication() {
+      const parsed = parseRoomCode(appState.rawQuery);
+      const warningBanner = document.getElementById('parseWarningBanner');
+
+      if (!parsed.valid) {
+        warningBanner.classList.remove('hidden');
+        return;
+      }
+      warningBanner.classList.add('hidden');
+      appState.parsed = parsed;
+
+      const bldg = parsed.building;
+      const hub = START_HUBS[appState.startHub];
+      const route = buildRouteData(appState.startHub, parsed, appState.indoorMode);
+
+      // 1. Update Top Preset Chips Active State
+      document.querySelectorAll('.preset-chip').forEach((chip) => {
+        const chipCode = chip.getAttribute('data-preset').replace(/[\s\-]/g, '').toUpperCase();
+        const currCode = parsed.formattedCode.replace(/[\s\-]/g, '').toUpperCase();
+        if (chipCode === currCode) {
+          chip.className = 'preset-chip px-2.5 py-1 rounded-lg text-xs font-mono bg-tmu-gold text-slate-950 font-bold border border-tmu-gold shadow transition';
+        } else {
+          chip.className = 'preset-chip px-2.5 py-1 rounded-lg text-xs font-mono bg-slate-800/90 hover:bg-tmu-blue hover:text-white text-slate-300 border border-slate-700 transition';
+        }
+      });
+
+      // 2. Update Card 1: Decoded Destination
+      document.getElementById('cardCodeBadge').textContent = parsed.formattedCode;
+      document.getElementById('cardBuildingName').textContent = bldg.name;
+      document.getElementById('cardBuildingAddress').textContent = bldg.address;
+      document.getElementById('cardWingDetail').textContent = parsed.wingDetail;
+
+      // 3. Update Card 2: True Floor Decoder
+      const quirkBadge = document.getElementById('cardFloorQuirkBadge');
+      quirkBadge.textContent = parsed.floorBadgeText;
+      if (parsed.floorBadgeStyle === 'amber') {
+        quirkBadge.className = 'text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/40';
+      } else if (parsed.floorBadgeStyle === 'sky') {
+        quirkBadge.className = 'text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-sky-400/20 text-sky-300 border border-sky-400/40';
+      } else {
+        quirkBadge.className = 'text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-400/20 text-emerald-300 border border-emerald-400/40';
+      }
+      document.getElementById('cardTrueFloorBig').textContent = parsed.trueFloorTitle;
+      document.getElementById('cardRoomNumberSub').textContent = `(${parsed.roomLabel})`;
+      document.getElementById('cardFloorExplanation').innerHTML = parsed.floorExplanation;
+
+      // 4. Update Card 3: Walk Time & Route Exposure
+      const exposureBadge = document.getElementById('cardExposureBadge');
+      exposureBadge.textContent = route.exposureText;
+      if (route.exposureStyle === 'emerald') {
+        exposureBadge.className = 'text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+      } else if (route.exposureStyle === 'sky') {
+        exposureBadge.className = 'text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30';
+      } else {
+        exposureBadge.className = 'text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-slate-700 text-slate-300 border border-slate-600';
+      }
+      document.getElementById('cardWalkMinutes').textContent = `${route.walkMin} min`;
+      document.getElementById('cardWalkDistance').textContent = `(~${route.distanceM} m)`;
+      document.getElementById('cardStartHubLabel').innerHTML = `From <span class="text-sky-300 font-semibold">${hub.name}</span> (${appState.indoorMode ? 'Indoor Bridges Prioritized' : 'Direct Outdoor Walk'}).`;
+
+      // 5. Update Card 4: Accessibility & Washroom Note
+      document.getElementById('cardAccessNote').textContent = bldg.accessNote;
+      document.getElementById('cardWashroomNote').textContent = bldg.washroomNote;
+
+      // 6. Update SVG Map Building Highlights, Hub Pins & Animated Walking Path
+      document.querySelectorAll('.bldg-footprint').forEach((el) => {
+        el.classList.remove('bldg-active');
+      });
+      // Map LIB to POD footprint on SVG
+      const targetShapeId = parsed.bldgCode === 'LIB' ? 'shape-POD' : `shape-${parsed.bldgCode}`;
+      const activeShape = document.getElementById(targetShapeId);
+      if (activeShape) {
+        activeShape.classList.add('bldg-active');
+      }
+
+      // Highlight active start hub pin on SVG
+      ['DUNDAS', 'SLC', 'QUAD'].forEach((hubKey) => {
+        const pinGroup = document.getElementById(`hubPin-${hubKey}`);
+        if (!pinGroup) return;
+        const outerCircle = pinGroup.querySelector('circle:first-of-type');
+        const innerCircle = pinGroup.querySelector('circle:nth-of-type(2)');
+        if (hubKey === appState.startHub) {
+          outerCircle.setAttribute('stroke', '#FFDC00');
+          outerCircle.setAttribute('stroke-width', '3');
+          innerCircle.setAttribute('fill', '#FFDC00');
+        } else {
+          outerCircle.setAttribute('stroke', '#38BDF8');
+          outerCircle.setAttribute('stroke-width', '1.5');
+          innerCircle.setAttribute('fill', '#38BDF8');
+        }
+      });
+
+      // Move Target Destination Pin & Draw Animated SVG Route
+      const destPin = document.getElementById('targetDestPin');
+      destPin.setAttribute('transform', `translate(${bldg.pinCoords.x}, ${bldg.pinCoords.y})`);
+
+      const svgRouteLine = document.getElementById('svgRouteLine');
+      const svgRouteGlow = document.getElementById('svgRouteGlow');
+      svgRouteLine.setAttribute('d', route.svgPathString);
+      svgRouteGlow.setAttribute('d', route.svgPathString);
+
+      document.getElementById('mapActiveRouteLabel').textContent = `${hub.shortName} → ${parsed.formattedCode} (${appState.indoorMode ? 'Indoor Bridges' : 'Direct Outdoor'})`;
+
+      // 7. Update Step-by-Step Navigation Panel
+      document.getElementById('stepsHeaderTitle').textContent = `${hub.shortName} to ${parsed.formattedCode}`;
+      const routeModePill = document.getElementById('routeModePill');
+      if (appState.indoorMode) {
+        routeModePill.className = 'px-2.5 py-1 rounded-lg bg-sky-500/20 border border-sky-400/30 text-sky-300 text-xs font-mono font-semibold flex items-center gap-1.5';
+        routeModePill.innerHTML = '<i class="fa-solid fa-snowflake"></i><span>Indoor Pref</span>';
+      } else {
+        routeModePill.className = 'px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-mono font-semibold flex items-center gap-1.5';
+        routeModePill.innerHTML = '<i class="fa-solid fa-sun"></i><span>Outdoor Direct</span>';
+      }
+
+      const stepListEl = document.getElementById('directionsStepList');
+      stepListEl.innerHTML = route.steps.map((step, index) => `
+        <li class="relative pl-9">
+          <span class="absolute left-0 top-0.5 w-7 h-7 rounded-full ${index === route.steps.length - 1 ? 'bg-tmu-gold text-slate-950' : 'bg-tmu-blue text-white border border-sky-400/40'} font-mono text-xs font-extrabold flex items-center justify-center shadow">
+            ${index + 1}
+          </span>
+          <h4 class="text-xs sm:text-sm font-bold text-white leading-snug">${step.title}</h4>
+          <p class="text-xs text-slate-300 mt-1 leading-relaxed">${step.desc}</p>
+        </li>
+      `).join('');
+
+      // 8. Update Insider Shortcut Box
+      const insiderBox = document.getElementById('insiderShortcutBox');
+      insiderBox.innerHTML = `
+        <div class="p-3 rounded-xl bg-slate-950/80 border border-sky-500/30">
+          <div class="font-bold text-tmu-gold mb-1 flex items-center gap-1.5">
+            <i class="fa-solid fa-lightbulb"></i>
+            <span>${bldg.code} Building Hack:</span>
+          </div>
+          <p class="text-slate-200">${bldg.insiderHack}</p>
+        </div>
+      `;
+    }
+
+    /**
+     * Event Listeners & Interactive Initialization
+     */
+    window.addEventListener('DOMContentLoaded', () => {
+      const searchForm = document.getElementById('roomSearchForm');
+      const searchInput = document.getElementById('roomSearchInput');
+
+      // Form Submit
+      searchForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        appState.rawQuery = searchInput.value;
+        renderApplication();
+      });
+
+      // Live Input Parsing (if valid room code typed)
+      searchInput.addEventListener('input', () => {
+        const testParse = parseRoomCode(searchInput.value);
+        if (testParse.valid) {
+          appState.rawQuery = searchInput.value;
+          renderApplication();
+        }
+      });
+
+      // Preset Chips Click
+      document.querySelectorAll('.preset-chip').forEach((chip) => {
+        chip.addEventListener('click', () => {
+          const code = chip.getAttribute('data-preset');
+          searchInput.value = code;
+          appState.rawQuery = code;
+          renderApplication();
+        });
+      });
+
+      // Starting Hub Buttons Click
+      const updateHubButtonsUI = () => {
+        document.querySelectorAll('.hub-btn').forEach((btn) => {
+          const hubId = btn.getAttribute('data-hub');
+          if (hubId === appState.startHub) {
+            btn.className = 'hub-btn active-hub py-2 px-2 rounded-lg text-xs font-semibold text-center transition flex flex-col items-center justify-center gap-1 bg-tmu-blue text-white border border-sky-400/40 shadow';
+          } else {
+            btn.className = 'hub-btn py-2 px-2 rounded-lg text-xs font-semibold text-center transition flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent';
+          }
+        });
+      };
+
+      document.querySelectorAll('.hub-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          appState.startHub = btn.getAttribute('data-hub');
+          updateHubButtonsUI();
+          renderApplication();
+        });
+      });
+
+      // Clicking Start Hub Pins directly on the SVG Map
+      ['DUNDAS', 'SLC', 'QUAD'].forEach((hubKey) => {
+        const pinEl = document.getElementById(`hubPin-${hubKey}`);
+        if (pinEl) {
+          pinEl.addEventListener('click', () => {
+            appState.startHub = hubKey;
+            updateHubButtonsUI();
+            renderApplication();
+          });
+        }
+      });
+
+      // Clicking any Building Footprint directly on the SVG Map
+      document.querySelectorAll('.bldg-group').forEach((group) => {
+        group.addEventListener('click', () => {
+          const clickedBldg = group.getAttribute('data-bldg');
+          const sampleRoom = group.getAttribute('data-sample');
+          // If user isn't already targeting this building, load its flagship sample room
+          if (!appState.parsed || appState.parsed.bldgCode !== clickedBldg) {
+            searchInput.value = sampleRoom;
+            appState.rawQuery = sampleRoom;
+            renderApplication();
+          }
+        });
+      });
+
+      // Weather / Indoor Bridge Mode Toggle Switch
+      const btnWeatherToggle = document.getElementById('btnWeatherToggle');
+      const weatherKnob = document.getElementById('weatherToggleKnob');
+      const indoorBadge = document.getElementById('indoorBadge');
+      const weatherIconBox = document.getElementById('weatherIconBox');
+
+      btnWeatherToggle.addEventListener('click', () => {
+        appState.indoorMode = !appState.indoorMode;
+        btnWeatherToggle.setAttribute('aria-checked', String(appState.indoorMode));
+        if (appState.indoorMode) {
+          btnWeatherToggle.classList.remove('bg-slate-700');
+          btnWeatherToggle.classList.add('bg-tmu-blue');
+          weatherKnob.classList.remove('translate-x-0');
+          weatherKnob.classList.add('translate-x-5');
+          indoorBadge.textContent = 'INDOOR BRIDGES';
+          indoorBadge.className = 'text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30';
+          weatherIconBox.innerHTML = '<i class="fa-solid fa-snowflake"></i>';
+        } else {
+          btnWeatherToggle.classList.remove('bg-tmu-blue');
+          btnWeatherToggle.classList.add('bg-slate-700');
+          weatherKnob.classList.remove('translate-x-5');
+          weatherKnob.classList.add('translate-x-0');
+          indoorBadge.textContent = 'OUTDOOR DIRECT';
+          indoorBadge.className = 'text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30';
+          weatherIconBox.innerHTML = '<i class="fa-solid fa-sun text-amber-300"></i>';
+        }
+        renderApplication();
+      });
+
+      // Modal Controls (First-Year Quirks Guide)
+      const quirksModal = document.getElementById('quirksModal');
+      document.getElementById('btnInsiderGuide').addEventListener('click', () => {
+        quirksModal.classList.remove('hidden');
+      });
+      document.getElementById('btnCloseModal').addEventListener('click', () => {
+        quirksModal.classList.add('hidden');
+      });
+      document.getElementById('btnCloseModalBottom').addEventListener('click', () => {
+        quirksModal.classList.add('hidden');
+      });
+      quirksModal.addEventListener('click', (e) => {
+        if (e.target === quirksModal) quirksModal.classList.add('hidden');
+      });
+
+      // Copy Route Directions to Clipboard (Safe iframe-compatible method)
+      document.getElementById('btnCopyDirections').addEventListener('click', () => {
+        if (!appState.parsed) return;
+        const hub = START_HUBS[appState.startHub];
+        const route = buildRouteData(appState.startHub, appState.parsed, appState.indoorMode);
+        const summaryLines = [
+          `TMU ClassPath Route: ${hub.name} -> ${appState.parsed.formattedCode} (${appState.parsed.building.name})`,
+          `True Floor: ${appState.parsed.trueFloorTitle} | Est. Walk: ${route.walkMin} min (~${route.distanceM}m)`,
+          ...route.steps.map((s, idx) => `${idx + 1}. ${s.title}: ${s.desc}`)
+        ].join('\n');
+
+        const tempArea = document.createElement('textarea');
+        tempArea.value = summaryLines;
+        document.body.appendChild(tempArea);
+        tempArea.select();
+        try {
+          document.execCommand('copy');
+        } catch (err) {
+          // Fallback ignored silently
+        }
+        document.body.removeChild(tempArea);
+
+        const toast = document.getElementById('copyToast');
+        document.getElementById('copyToastMsg').textContent = `Copied route to ${appState.parsed.formattedCode}!`;
+        toast.classList.remove('opacity-0', 'translate-y-2');
+        setTimeout(() => {
+          toast.classList.add('opacity-0', 'translate-y-2');
+        }, 2600);
+      });
+
+      // Initial Render
+      renderApplication();
+    });
+  </script>
+</body>
+</html>
